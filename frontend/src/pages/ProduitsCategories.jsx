@@ -246,7 +246,7 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-[#F4F2F5] overflow-hidden" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+    <div className="flex h-screen bg-white overflow-hidden" style={{ fontFamily: "'Montserrat', sans-serif" }}>
 
       
       <aside className="w-52 bg-white border-r border-gray-200 flex flex-col shrink-0">
@@ -260,7 +260,7 @@ export default function App() {
         <nav className="flex-1 py-4">
           <p className="px-4 text-[9px] font-semibold tracking-widest text-gray-400 uppercase mb-2">Gestion interne</p>
           {[
-            { id: "dashboard", label: "Dashboard", icon: <img src="c:\Users\LENOVO\Downloads\4254577.png" alt="Dashboard" className="w-5 h-5" /> },
+            { id: "dashboard", label: "Dashboard", icon: "📊" },
             { id: "stock", label: "Catégories et Stock", icon: "⊞" },
             { id: "clients", label: "Clients", icon: "👤" },
           ].map(item => (
@@ -269,8 +269,8 @@ export default function App() {
               onClick={() => setPage(item.id)}
               className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition border-l-2 ${
                 page === item.id
-                  ? "border-[#9E8A9C] bg-[#F4EFF5] text-[#7A5E8A] font-medium"
-                  : "border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700"
+                  ? "border-[#9E8A9C] bg-white text-[#7A5E8A] font-medium"
+                  : "border-transparent text-gray-500 hover:bg-white hover:text-gray-700"
               }`}
             >
               <span className="text-base leading-none">{item.icon}</span>
@@ -290,13 +290,6 @@ export default function App() {
         
         <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shrink-0">
           <h1 className="text-xl italic font-medium text-gray-800 tracking-wide" style={{ fontFamily: "'Playfair Display', serif" }}>Gestion des Stocks</h1>
-          <div className="flex items-center gap-3">
-            {["🔔","⚙️","👤"].map((ic, i) => (
-              <button key={i} className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-base hover:bg-gray-50 transition">
-                {ic}
-              </button>
-            ))}
-          </div>
         </header>
 
       
@@ -315,7 +308,7 @@ export default function App() {
                   placeholder="nom/référence..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-gray-50 outline-none focus:ring-1 focus:ring-[#9E8A9C]"
+                  className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-white outline-none focus:ring-1 focus:ring-[#9E8A9C]"
                 />
               </div>
             </section>
@@ -401,7 +394,7 @@ export default function App() {
           </div>
 
 
-          <main className="flex-1 overflow-y-auto p-6">
+          <main className="flex-1 overflow-y-auto p-6 bg-white">
             <div className="flex items-center justify-between mb-5">
               <p className="text-sm text-gray-500">{filtered.length} produit(s)</p>
               <button
