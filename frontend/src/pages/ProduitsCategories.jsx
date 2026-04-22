@@ -1,33 +1,61 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Plus, Pencil, Trash2, Package, X, Check, Upload } from "lucide-react";
+import { products as prodApi, categories as catApi } from "../api";
 
-
-const INITIAL_CATEGORIES = ["Chaînes", "Ensembles", "Bagues", "Bracelets", "Collections"];
-const INITIAL_SUBCATEGORIES = {
-  Chaînes: ["Gourmette", "Chaînes classiques"],
-  Ensembles: [],
-  Bagues: [],
-  Bracelets: [],
-  Collections: [],
-};
-const INITIAL_PRODUCTS = [
-  { id: 1, ref: "SZM-002", name: "Bracelet Médaillon", stock: 5, category: "Bracelets", subCategory: "Gourmette", image: null },
-  { id: 2, ref: "SZM-002", name: "Chaîne Fine Or", stock: 0, category: "Chaînes", subCategory: "Chaînes classiques", image: null },
-  { id: 3, ref: "SZM-002", name: "Chaîne Plate", stock: 0, category: "Chaînes", subCategory: "Chaînes classiques", image: null },
-  { id: 4, ref: "SZM-002", name: "Chaîne Figaro", stock: 1, category: "Chaînes", subCategory: "Gourmette", image: null },
-  { id: 5, ref: "SZM-002", name: "Chaîne Cordée", stock: 3, category: "Chaînes", subCategory: "Gourmette", image: null },
-  { id: 6, ref: "SZM-002", name: "Chaîne Maille", stock: 0, category: "Chaînes", subCategory: "Chaînes classiques", image: null },
+const STOCK_FILTERS = [
+  { key:"all", label:"Tous" },
+  { key:"in",  label:"En stock" },
+  { key:"out", label:"Rupture" },
+  { key:"low", label:"Stock faible" },
 ];
 
+const STATUS_COLOR = (stock) =>
+  stock === 0 ? { bg:"#FAE8E8", color:"#B04040", label:"Rupture" }
+  : stock <= 3 ? { bg:"#FFF7ED", color:"#C2410C", label:"Stock faible" }
+  :              { bg:"#EAF5EC", color:"#3D7A47", label:"En stock" };
 
-function AddProductModal({ categories, subCategories, onClose, onAdd }) {
-  const [form, setForm] = useState({ name: "", ref: "", stock: "", category: "", subCategory: "", image: null, preview: null });
+/* ── Modals ─────────────────────────────────────────────────────────────────── */
+function TextModal({ title, placeholder, initial = '', onClose, onSave }) {
+  const [val, setVal] = useState(initial);
+  const [err, setErr] = useState('');
+  const submit = () => {
+    if (!val.trim()) { setErr('Ce champ est requis'); return; }
+    onSave(val.trim()); onClose();
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-80 p-6 relative" onClick={e => e.stopPropagation()}>
+        <button onClick={onClose} className="absolute top-3 right-4 text-gray-400 hover:text-gray-600 text-xl">×</button>
+        <h2 className="font-sans-custom font-bold mb-4" style={{ fontSize:16, color:"#1a1212" }}>{title}</h2>
+        <input autoFocus value={val} onChange={e => { setVal(e.target.value); setErr(''); }}
+          onKeyDown={e => e.key === 'Enter' && submit()}
+          placeholder={placeholder}
+          className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-sans-custom outline-none focus:ring-1 focus:ring-[#9E8A9C] mb-1" />
+        {err && <p className="text-red-400 text-xs mb-2">{err}</p>}
+        <button onClick={submit} className="w-full mt-3 text-white rounded-xl py-2.5 text-sm font-bold font-sans-custom transition"
+          style={{ background:"linear-gradient(135deg,#9b6b7a,#b07585)" }}>
+          {initial ? 'Modifier' : 'Ajouter'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ProductModal({ categories, subCategories, initial, onClose, onSave }) {
+  const [form, setForm] = useState({
+    name: initial?.name || '', ref: initial?.ref || '',
+    description: initial?.description || '',
+    purchase_price: initial?.purchase_price ?? '', sale_price: initial?.sale_price ?? '',
+    stock: initial?.stock ?? '', category_id: initial?.category_id || '',
+    sub_category_id: initial?.sub_category_id || '', image: null, preview: initial?.image || null,
+  });
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
 
-  const handleImage = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+  const handleImage = e => {
+    const file = e.target.files[0]; if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => setForm(f => ({ ...f, image: file, preview: ev.target.result }));
     reader.readAsDataURL(file);
@@ -35,422 +63,388 @@ function AddProductModal({ categories, subCategories, onClose, onAdd }) {
 
   const validate = () => {
     const e = {};
-    if (!form.name.trim()) e.name = "Requis";
-    if (!form.stock && form.stock !== 0) e.stock = "Requis";
-    if (isNaN(Number(form.stock)) || Number(form.stock) < 0) e.stock = "Nombre ≥ 0";
-    if (!form.category) e.category = "Requis";
+    if (!form.name.trim()) e.name = 'Requis';
+    if (form.stock === '' || isNaN(Number(form.stock)) || Number(form.stock) < 0) e.stock = 'Nombre ≥ 0';
+    if (!form.category_id) e.category_id = 'Requis';
     return e;
   };
 
-  const handleSubmit = () => {
-    const e = validate();
-    if (Object.keys(e).length) { setErrors(e); return; }
-    onAdd({
-      id: Date.now(),
-      name: form.name.trim(),
-      ref: form.ref.trim() || "SZM-XXX",
-      stock: Number(form.stock),
-      category: form.category,
-      subCategory: form.subCategory,
-      image: form.preview,
-    });
-    onClose();
+  const handleSubmit = async () => {
+    const e = validate(); if (Object.keys(e).length) { setErrors(e); return; }
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append('name', form.name.trim());
+      fd.append('ref', form.ref);
+      fd.append('description', form.description);
+      fd.append('purchase_price', form.purchase_price || 0);
+      fd.append('sale_price', form.sale_price || 0);
+      fd.append('stock', form.stock);
+      fd.append('category_id', form.category_id);
+      if (form.sub_category_id) fd.append('sub_category_id', form.sub_category_id);
+      if (form.image) fd.append('image', form.image);
+      await onSave(fd);
+      onClose();
+    } catch (err) { setErrors({ _: err.message }); }
+    finally { setSaving(false); }
   };
 
-  const subs = form.category ? (subCategories[form.category] || []) : [];
+  const subs = subCategories.filter(s => s.category_id === Number(form.category_id));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-80 p-6 relative" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-3 right-4 text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
-        <h2 className="text-center text-lg font-medium text-[#7A6B89] mb-5">Ajouter un produit</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto relative" onClick={e => e.stopPropagation()}>
+        <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="font-sans-custom font-bold" style={{ fontSize:18, color:"#1a1212" }}>
+            {initial ? 'Modifier le produit' : 'Ajouter un produit'}
+          </h2>
+          <button onClick={onClose}><X size={20} style={{ color:"#9a8585" }} /></button>
+        </div>
+        <div className="p-6 flex flex-col gap-4">
+          {errors._ && <p className="text-red-500 text-sm font-sans-custom">{errors._}</p>}
 
-        <label className="flex items-center justify-center gap-2 border border-dashed border-gray-300 rounded-lg py-3 px-4 cursor-pointer hover:bg-gray-50 transition mb-4 text-sm text-gray-500">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1M12 12V4m0 0L8 8m4-4 4 4" /></svg>
-          {form.image ? form.image.name : "Télécharger une photo de la pièce"}
-          <input type="file" accept="image/*" className="hidden" onChange={handleImage} />
-        </label>
-        {form.preview && <img src={form.preview} alt="preview" className="w-full h-32 object-contain rounded-lg border mb-4" />}
+          {/* Image */}
+          <label className="flex items-center justify-center gap-2 border border-dashed border-gray-300 rounded-xl py-3 cursor-pointer hover:bg-gray-50 transition text-sm text-gray-500 font-sans-custom">
+            <Upload size={16} />
+            {form.image ? form.image.name : form.preview ? 'Photo existante (changer)' : 'Télécharger une photo'}
+            <input type="file" accept="image/*" className="hidden" onChange={handleImage} />
+          </label>
+          {form.preview && <img src={form.preview} alt="" className="w-full h-36 object-contain rounded-xl border" />}
 
-       
-        <div className="mb-3">
-          <input
-            className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#9E8A9C] ${errors.name ? "border-red-400" : "border-gray-300"}`}
-            placeholder="Nom du produit"
-            value={form.name}
-            onChange={e => { set("name", e.target.value); setErrors(er => ({ ...er, name: undefined })); }}
-          />
-          {errors.name && <p className="text-red-400 text-xs mt-0.5">{errors.name}</p>}
+          {/* Nom */}
+          <div>
+            <label className="font-sans-custom font-bold text-[11px] uppercase tracking-[0.14em] text-[#5e4d4d] block mb-1.5">Nom du produit *</label>
+            <input value={form.name} onChange={e => { set('name', e.target.value); setErrors(er => ({...er, name:undefined})); }}
+              placeholder="Ex: Bracelet Or" className={`w-full border rounded-xl px-3 py-2.5 text-sm font-sans-custom outline-none ${errors.name ? 'border-red-400':'border-gray-300'}`} />
+            {errors.name && <p className="text-red-400 text-xs mt-0.5">{errors.name}</p>}
+          </div>
+
+          {/* Référence */}
+          <div>
+            <label className="font-sans-custom font-bold text-[11px] uppercase tracking-[0.14em] text-[#5e4d4d] block mb-1.5">Référence</label>
+            <input value={form.ref} onChange={e => set('ref', e.target.value)} placeholder="Ex: SZM-001"
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-sans-custom outline-none" />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="font-sans-custom font-bold text-[11px] uppercase tracking-[0.14em] text-[#5e4d4d] block mb-1.5">Description</label>
+            <textarea value={form.description} onChange={e => set('description', e.target.value)} rows={2}
+              placeholder="Description du produit…"
+              className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-sans-custom outline-none resize-none" />
+          </div>
+
+          {/* Prix */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="font-sans-custom font-bold text-[11px] uppercase tracking-[0.14em] text-[#5e4d4d] block mb-1.5">Prix d'achat (DT)</label>
+              <input type="number" min="0" step="0.01" value={form.purchase_price} onChange={e => set('purchase_price', e.target.value)}
+                placeholder="0.00" className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-sans-custom outline-none" />
+            </div>
+            <div>
+              <label className="font-sans-custom font-bold text-[11px] uppercase tracking-[0.14em] text-[#5e4d4d] block mb-1.5">Prix de vente (DT)</label>
+              <input type="number" min="0" step="0.01" value={form.sale_price} onChange={e => set('sale_price', e.target.value)}
+                placeholder="0.00" className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-sans-custom outline-none" />
+            </div>
+          </div>
+
+          {/* Stock */}
+          <div>
+            <label className="font-sans-custom font-bold text-[11px] uppercase tracking-[0.14em] text-[#5e4d4d] block mb-1.5">Quantité en stock *</label>
+            <input type="number" min="0" value={form.stock} onChange={e => { set('stock', e.target.value); setErrors(er => ({...er, stock:undefined})); }}
+              placeholder="0" className={`w-full border rounded-xl px-3 py-2.5 text-sm font-sans-custom outline-none ${errors.stock ? 'border-red-400':'border-gray-300'}`} />
+            {errors.stock && <p className="text-red-400 text-xs mt-0.5">{errors.stock}</p>}
+          </div>
+
+          {/* Catégorie */}
+          <div>
+            <label className="font-sans-custom font-bold text-[11px] uppercase tracking-[0.14em] text-[#5e4d4d] block mb-1.5">Catégorie *</label>
+            <select value={form.category_id} onChange={e => { set('category_id', e.target.value); set('sub_category_id',''); setErrors(er => ({...er, category_id:undefined})); }}
+              className={`w-full border rounded-xl px-3 py-2.5 text-sm font-sans-custom outline-none bg-white ${errors.category_id ? 'border-red-400':'border-gray-300'}`}>
+              <option value="">Choisir une catégorie</option>
+              {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            {errors.category_id && <p className="text-red-400 text-xs mt-0.5">{errors.category_id}</p>}
+          </div>
+
+          {/* Sous-catégorie */}
+          {subs.length > 0 && (
+            <div>
+              <label className="font-sans-custom font-bold text-[11px] uppercase tracking-[0.14em] text-[#5e4d4d] block mb-1.5">Sous-catégorie</label>
+              <select value={form.sub_category_id} onChange={e => set('sub_category_id', e.target.value)}
+                className="w-full border border-gray-300 rounded-xl px-3 py-2.5 text-sm font-sans-custom outline-none bg-white">
+                <option value="">Aucune</option>
+                {subs.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+              </select>
+            </div>
+          )}
         </div>
 
-        
-        <div className="mb-3">
-          <input
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#9E8A9C]"
-            placeholder="Référence (ex: SZM-001)"
-            value={form.ref}
-            onChange={e => set("ref", e.target.value)}
-          />
+        <div className="p-5 border-t border-gray-100 flex gap-3 justify-end">
+          <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-sans-custom font-semibold" style={{ color:"#5e4d4d" }}>
+            Annuler
+          </button>
+          <button onClick={handleSubmit} disabled={saving} className="px-5 py-2.5 rounded-xl text-white text-sm font-bold font-sans-custom transition"
+            style={{ background:"linear-gradient(135deg,#9b6b7a,#b07585)", opacity: saving ? .7 : 1 }}>
+            {saving ? 'Enregistrement…' : initial ? 'Modifier' : 'Ajouter'}
+          </button>
         </div>
-
-        <div className="flex items-center gap-3 mb-4">
-          <label className="text-sm text-gray-600 flex-1">Nombre de pièces en stock :</label>
-          <input
-            type="number"
-            min="0"
-            className={`w-20 border rounded-lg px-2 py-2 text-sm text-center outline-none focus:ring-1 focus:ring-[#9E8A9C] ${errors.stock ? "border-red-400" : "border-gray-300"}`}
-            value={form.stock}
-            onChange={e => { set("stock", e.target.value); setErrors(er => ({ ...er, stock: undefined })); }}
-          />
-          {errors.stock && <p className="text-red-400 text-xs">{errors.stock}</p>}
-        </div>
-
-        
-        <div className="mb-3">
-          <select
-            className={`w-full border rounded-lg px-3 py-2 text-sm text-gray-600 outline-none focus:ring-1 focus:ring-[#9E8A9C] bg-white ${errors.category ? "border-red-400" : "border-gray-300"}`}
-            value={form.category}
-            onChange={e => { set("category", e.target.value); set("subCategory", ""); setErrors(er => ({ ...er, category: undefined })); }}
-          >
-            <option value="">Choisir la catégorie</option>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-          {errors.category && <p className="text-red-400 text-xs mt-0.5">{errors.category}</p>}
-        </div>
-
-        <div className="mb-5">
-          <select
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-600 outline-none focus:ring-1 focus:ring-[#9E8A9C] bg-white"
-            value={form.subCategory}
-            onChange={e => set("subCategory", e.target.value)}
-            disabled={!form.category || subs.length === 0}
-          >
-            <option value="">Choisir la sous-catégorie</option>
-            {subs.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </div>
-
-        <button
-          onClick={handleSubmit}
-          className="w-full bg-[#9E8A9C] hover:bg-[#8B7589] text-white rounded-lg py-2.5 text-sm font-medium transition"
-        >
-          Ajouter le produit
-        </button>
       </div>
     </div>
   );
 }
 
-function AddTextModal({ title, placeholder, onClose, onAdd }) {
-  const [value, setValue] = useState("");
-  const [error, setError] = useState("");
-  const submit = () => {
-    if (!value.trim()) { setError("Ce champ est requis"); return; }
-    onAdd(value.trim());
-    onClose();
-  };
+/* ── Product Card ─────────────────────────────────────────────────────────────── */
+function ProductCard({ product, onEdit, onDelete }) {
+  const st = STATUS_COLOR(product.stock);
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-72 p-6 relative" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} className="absolute top-3 right-4 text-gray-400 hover:text-gray-600 text-xl">×</button>
-        <h2 className="text-center text-base font-medium text-[#7A6B89] mb-4">{title}</h2>
-        <input
-          autoFocus
-          className={`w-full border rounded-lg px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-[#9E8A9C] mb-1 ${error ? "border-red-400" : "border-gray-300"}`}
-          placeholder={placeholder}
-          value={value}
-          onChange={e => { setValue(e.target.value); setError(""); }}
-          onKeyDown={e => e.key === "Enter" && submit()}
-        />
-        {error && <p className="text-red-400 text-xs mb-2">{error}</p>}
-        <button onClick={submit} className="w-full mt-3 bg-[#9E8A9C] hover:bg-[#8B7589] text-white rounded-lg py-2 text-sm font-medium transition">
-          Ajouter
-        </button>
-      </div>
-    </div>
-  );
-}
-
-const ProductCard = ({ product, index }) => {
-  const inStock = product.stock > 0;
-  return (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow cursor-pointer group">
-      <div className="bg-[#F8F5F0] flex items-center justify-center h-40 relative overflow-hidden">
-        {product.image && <img src={product.image} alt={product.name} className="w-4/5 h-4/5 object-contain" />}
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow group relative">
+      <div className="bg-[#f4f4f5] flex items-center justify-center h-36 relative overflow-hidden">
+        {product.image
+          ? <img src={product.image} alt={product.name} className="w-4/5 h-4/5 object-contain" />
+          : <Package size={32} style={{ color:"#c4b0aa" }} />
+        }
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <button onClick={() => onEdit(product)} className="w-7 h-7 rounded-lg bg-white shadow flex items-center justify-center hover:bg-gray-50">
+            <Pencil size={13} style={{ color:"#9b6b7a" }} />
+          </button>
+          <button onClick={() => onDelete(product)} className="w-7 h-7 rounded-lg bg-white shadow flex items-center justify-center hover:bg-red-50">
+            <Trash2 size={13} style={{ color:"#ef4444" }} />
+          </button>
+        </div>
       </div>
       <div className="p-3">
-        <p className="text-xs text-gray-500 font-medium">{product.ref}</p>
-        {product.name !== product.ref && <p className="text-xs text-gray-700 mt-0.5 truncate">{product.name}</p>}
-        <p className="text-xs text-gray-400 mt-0.5">Stock : {product.stock}</p>
-        <div className={`mt-2 text-center py-1.5 rounded-lg text-xs font-medium ${inStock ? "bg-[#EAF5EC] text-[#3D7A47]" : "bg-[#FAE8E8] text-[#B04040]"}`}>
-          {inStock ? "En stock" : "Rupture de stock"}
+        <p className="font-sans-custom text-[11px] font-semibold" style={{ color:"#9a8585" }}>{product.ref || '—'}</p>
+        <p className="font-sans-custom text-sm font-bold mt-0.5 truncate" style={{ color:"#1a1212" }}>{product.name}</p>
+        {product.sale_price > 0 && (
+          <p className="num text-sm font-bold mt-0.5" style={{ color:"#9b6b7a" }}>{product.sale_price.toFixed(2)} DT</p>
+        )}
+        <p className="font-sans-custom text-[11px] mt-0.5" style={{ color:"#7a6060" }}>
+          {product.category_name} {product.sub_category_name ? `· ${product.sub_category_name}` : ''}
+        </p>
+        <div className="mt-2 text-center py-1.5 rounded-lg font-sans-custom text-xs font-bold" style={{ backgroundColor: st.bg, color: st.color }}>
+          <span className="num">{product.stock}</span> — {st.label}
         </div>
       </div>
     </div>
   );
-};
+}
 
-export default function App() {
-  const [page, setPage] = useState("stock");
-  const [categories, setCategories] = useState(INITIAL_CATEGORIES);
-  const [subCategories, setSubCategories] = useState(INITIAL_SUBCATEGORIES);
-  const [products, setProducts] = useState(INITIAL_PRODUCTS);
+/* ── Main Page ───────────────────────────────────────────────────────────────── */
+export default function ProduitsCategories() {
+  const [categories,   setCategories]   = useState([]);
+  const [subCategories, setSubCategories] = useState([]);
+  const [prods,        setProds]        = useState([]);
+  const [loading,      setLoading]      = useState(true);
 
-  const [activeCategory, setActiveCategory] = useState(null);
+  const [activeCategory,    setActiveCategory]    = useState(null);
   const [activeSubCategory, setActiveSubCategory] = useState(null);
-  const [stockFilter, setStockFilter] = useState("all");
-  const [search, setSearch] = useState("");
+  const [stockFilter,       setStockFilter]       = useState('all');
+  const [search,            setSearch]            = useState('');
 
-  const [modal, setModal] = useState(null); 
+  const [modal,   setModal]   = useState(null); // 'product' | 'category' | 'subcategory' | 'editProduct' | 'editCategory'
+  const [editing, setEditing] = useState(null);
+  const [confirm, setConfirm] = useState(null); // { type, item }
 
+  /* Load categories */
+  const loadCategories = useCallback(async () => {
+    const data = await catApi.list();
+    setCategories(data.categories);
+    setSubCategories(data.subCategories);
+  }, []);
 
-  const availableSubs = useMemo(() => {
-    if (!activeCategory) return [];
-    return subCategories[activeCategory] || [];
-  }, [activeCategory, subCategories]);
+  /* Load products */
+  const loadProducts = useCallback(async () => {
+    setLoading(true);
+    const filters = {};
+    if (activeCategory)    filters.category_id    = activeCategory;
+    if (activeSubCategory) filters.sub_category_id = activeSubCategory;
+    if (search)            filters.search          = search;
+    if (stockFilter !== 'all') filters.stock       = stockFilter;
+    const data = await prodApi.list(filters);
+    setProds(data);
+    setLoading(false);
+  }, [activeCategory, activeSubCategory, search, stockFilter]);
 
- 
-  const filtered = useMemo(() => {
-    return products.filter(p => {
-      const matchSearch = !search || p.ref.toLowerCase().includes(search.toLowerCase()) || p.name.toLowerCase().includes(search.toLowerCase());
-      const matchCat = !activeCategory || p.category === activeCategory;
-      const matchSub = !activeSubCategory || p.subCategory === activeSubCategory;
-      const matchStock = stockFilter === "all" || (stockFilter === "in" && p.stock > 0) || (stockFilter === "out" && p.stock === 0);
-      return matchSearch && matchCat && matchSub && matchStock;
-    });
-  }, [products, search, activeCategory, activeSubCategory, stockFilter]);
+  useEffect(() => { loadCategories(); }, [loadCategories]);
+  useEffect(() => { loadProducts(); }, [loadProducts]);
 
-  const addProduct = useCallback((p) => setProducts(ps => [...ps, p]), []);
+  /* Category handlers */
+  const handleCatClick = id => {
+    setActiveCategory(c => c === id ? null : id);
+    setActiveSubCategory(null);
+  };
+  const handleSubClick = id => setActiveSubCategory(s => s === id ? null : id);
 
-  const addCategory = useCallback((name) => {
-    if (categories.includes(name)) return;
-    setCategories(cs => [...cs, name]);
-    setSubCategories(sc => ({ ...sc, [name]: [] }));
-  }, [categories]);
-
-  const addSubCategory = useCallback((name) => {
-    if (!activeCategory) return;
-    setSubCategories(sc => ({
-      ...sc,
-      [activeCategory]: [...(sc[activeCategory] || []), name],
-    }));
-  }, [activeCategory]);
-
-  const handleCategoryClick = (cat) => {
-    if (activeCategory === cat) { setActiveCategory(null); setActiveSubCategory(null); }
-    else { setActiveCategory(cat); setActiveSubCategory(null); }
+  /* Product CRUD */
+  const handleAddProduct = async (fd) => {
+    await prodApi.create(fd); await loadProducts();
+  };
+  const handleEditProduct = async (fd) => {
+    await prodApi.update(editing.id, fd); await loadProducts();
+  };
+  const handleDeleteProduct = async () => {
+    await prodApi.remove(confirm.item.id); setConfirm(null); await loadProducts();
   };
 
-  const handleSubClick = (sub) => {
-    setActiveSubCategory(s => s === sub ? null : sub);
+  /* Category CRUD */
+  const handleAddCategory = async (name) => {
+    await catApi.create(name); await loadCategories();
   };
+  const handleEditCategory = async (name) => {
+    await catApi.update(editing.id, name); await loadCategories();
+  };
+  const handleDeleteCategory = async () => {
+    await catApi.remove(confirm.item.id); setConfirm(null);
+    if (activeCategory === confirm.item.id) setActiveCategory(null);
+    await loadCategories(); await loadProducts();
+  };
+
+  const availableSubs = subCategories.filter(s => s.category_id === activeCategory);
 
   return (
-    <div className="flex h-screen bg-[#F4F2F5] overflow-hidden" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+    <div className="flex flex-1 min-h-0" style={{ fontFamily:"'DM Sans',sans-serif" }}>
 
-      
-      <aside className="w-52 bg-white border-r border-gray-200 flex flex-col shrink-0">
-       
-        <div className="px-4 pt-5 pb-4 border-b border-gray-100">
-          <p className="text-base font-semibold tracking-widest text-gray-800" style={{ fontFamily: "'Playfair Display', serif" }}>HAJTAIEB</p>
-          <p className="text-xs italic text-gray-400">Model</p>
-        </div>
+      {/* ── Filter sidebar ─────────────────────────────────── */}
+      <div className="w-60 bg-white border-r border-gray-200 overflow-y-auto shrink-0 p-4">
 
-    
-        <nav className="flex-1 py-4">
-          <p className="px-4 text-[9px] font-semibold tracking-widest text-gray-400 uppercase mb-2">Gestion interne</p>
-          {[
-            { id: "dashboard", label: "Dashboard", icon: <img src="c:\Users\LENOVO\Downloads\4254577.png" alt="Dashboard" className="w-5 h-5" /> },
-            { id: "stock", label: "Catégories et Stock", icon: "⊞" },
-            { id: "clients", label: "Clients", icon: "👤" },
-          ].map(item => (
-            <button
-              key={item.id}
-              onClick={() => setPage(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition border-l-2 ${
-                page === item.id
-                  ? "border-[#9E8A9C] bg-[#F4EFF5] text-[#7A5E8A] font-medium"
-                  : "border-transparent text-gray-500 hover:bg-gray-50 hover:text-gray-700"
-              }`}
-            >
-              <span className="text-base leading-none">{item.icon}</span>
-              {item.label}
+        {/* Recherche */}
+        <section className="mb-5">
+          <p className="font-sans-custom font-bold text-[10px] tracking-[0.18em] uppercase text-[#1a1212] mb-2">Recherche</p>
+          <input type="text" placeholder="nom / référence…" value={search} onChange={e => setSearch(e.target.value)}
+            className="w-full px-3 py-2 text-sm border border-gray-200 rounded-xl bg-white outline-none focus:ring-1 focus:ring-[#9E8A9C] font-sans-custom" />
+        </section>
+
+        {/* Catégories */}
+        <section className="mb-5">
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-sans-custom font-bold text-[10px] tracking-[0.18em] uppercase text-[#1a1212]">Catégories</p>
+            <button onClick={() => setModal('category')} className="text-[#9b6b7a] hover:text-[#7a4d5d] transition" title="Ajouter">
+              <Plus size={14} />
             </button>
-          ))}
-        </nav>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {categories.map(cat => (
+              <div key={cat.id} className="flex items-center gap-0.5 group">
+                <button onClick={() => handleCatClick(cat.id)}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition font-sans-custom ${activeCategory === cat.id ? 'bg-[#7A6B89] border-[#7A6B89] text-white' : 'bg-white border-gray-300 text-[#1a1212] hover:border-[#9E8A9C]'}`}>
+                  {cat.name}
+                </button>
+                <div className="hidden group-hover:flex gap-0.5">
+                  <button onClick={() => { setEditing(cat); setModal('editCategory'); }} className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-gray-100"><Pencil size={10} style={{ color:"#9b6b7a" }} /></button>
+                  <button onClick={() => setConfirm({ type:'category', item: cat })} className="w-5 h-5 flex items-center justify-center rounded-full hover:bg-red-50"><Trash2 size={10} style={{ color:"#ef4444" }} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
 
-        <button className="px-4 py-4 text-sm text-gray-400 hover:text-gray-600 text-left border-t border-gray-100 transition">
-          ← Déconnexion
-        </button>
-      </aside>
+        {/* Sous-catégories */}
+        {activeCategory && (
+          <section className="mb-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="font-sans-custom font-bold text-[10px] tracking-[0.18em] uppercase text-[#1a1212]">Sous-catégories</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {availableSubs.map(sub => (
+                <div key={sub.id} className="flex items-center gap-0.5 group">
+                  <button onClick={() => handleSubClick(sub.id)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition font-sans-custom ${activeSubCategory === sub.id ? 'bg-[#7A6B89] border-[#7A6B89] text-white' : 'bg-white border-gray-300 text-[#1a1212] hover:border-[#9E8A9C]'}`}>
+                    {sub.name}
+                  </button>
+                  <button onClick={() => setConfirm({ type:'sub', item: sub })} className="hidden group-hover:flex w-5 h-5 items-center justify-center rounded-full hover:bg-red-50">
+                    <Trash2 size={10} style={{ color:"#ef4444" }} />
+                  </button>
+                </div>
+              ))}
+              {availableSubs.length === 0 && <p className="text-xs font-sans-custom" style={{ color:"#9a8585" }}>Non disponible sur cette version</p>}
+            </div>
+          </section>
+        )}
 
-      
-      <div className="flex-1 flex flex-col min-w-0">
-
-        
-        <header className="bg-white border-b border-gray-200 px-8 py-4 flex items-center justify-between shrink-0">
-          <h1 className="text-xl italic font-medium text-gray-800 tracking-wide" style={{ fontFamily: "'Playfair Display', serif" }}>Gestion des Stocks</h1>
-          <div className="flex items-center gap-3">
-            {["🔔","⚙️","👤"].map((ic, i) => (
-              <button key={i} className="w-8 h-8 rounded-full border border-gray-200 flex items-center justify-center text-base hover:bg-gray-50 transition">
-                {ic}
+        {/* Stock filter */}
+        <section>
+          <p className="font-sans-custom font-bold text-[10px] tracking-[0.18em] uppercase text-[#1a1212] mb-2">État du stock</p>
+          <div className="space-y-0.5">
+            {STOCK_FILTERS.map(opt => (
+              <button key={opt.key} onClick={() => setStockFilter(opt.key)}
+                className={`w-full text-left px-3 py-2 rounded-xl font-sans-custom font-semibold text-sm transition ${stockFilter === opt.key ? 'bg-[#EDE8F0] text-[#7A5E8A]' : 'text-[#1a1212] hover:bg-gray-50'}`}>
+                {opt.label}
               </button>
             ))}
           </div>
-        </header>
-
-      
-        <div className="flex flex-1 min-h-0">
-
-          
-          <div className="w-56 bg-white border-r border-gray-200 overflow-y-auto shrink-0 p-4">
-
-            
-            <section className="mb-5">
-              <p className="text-[10px] font-bold tracking-widest uppercase text-gray-700 mb-2">Recherche</p>
-              <div className="relative">
-                <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">⌕</span>
-                <input
-                  type="text"
-                  placeholder="nom/référence..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-7 pr-3 py-1.5 text-xs border border-gray-200 rounded-lg bg-gray-50 outline-none focus:ring-1 focus:ring-[#9E8A9C]"
-                />
-              </div>
-            </section>
-
-          
-            <section className="mb-5">
-              <p className="text-[10px] font-bold tracking-widest uppercase text-gray-700 mb-2">Catégories</p>
-              <div className="flex flex-wrap gap-1.5">
-                {categories.map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => handleCategoryClick(cat)}
-                    className={`px-2.5 py-1 rounded-full text-xs border transition ${
-                      activeCategory === cat
-                        ? "bg-[#7A6B89] border-[#7A6B89] text-white"
-                        : "bg-white border-gray-300 text-gray-600 hover:border-[#9E8A9C]"
-                    }`}
-                  >
-                    {cat}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setModal("category")}
-                  className="px-2.5 py-1 rounded-full text-xs border border-dashed border-gray-300 text-gray-400 hover:border-[#9E8A9C] hover:text-[#9E8A9C] transition"
-                >
-                  + Ajouter une catégorie
-                </button>
-              </div>
-            </section>
-
-            <section className="mb-5">
-              <p className="text-[10px] font-bold tracking-widest uppercase text-gray-700 mb-2">Sous-Catégories</p>
-              {!activeCategory ? (
-                <p className="text-xs text-gray-400 italic">Sélectionnez une catégorie</p>
-              ) : (
-                <div className="flex flex-wrap gap-1.5">
-                  {availableSubs.map(sub => (
-                    <button
-                      key={sub}
-                      onClick={() => handleSubClick(sub)}
-                      className={`px-2.5 py-1 rounded-full text-xs border transition ${
-                        activeSubCategory === sub
-                          ? "bg-[#7A6B89] border-[#7A6B89] text-white"
-                          : "bg-white border-gray-300 text-gray-600 hover:border-[#9E8A9C]"
-                      }`}
-                    >
-                      {sub}
-                    </button>
-                  ))}
-                  <button
-                    onClick={() => setModal("subcategory")}
-                    className="px-2.5 py-1 rounded-full text-xs border border-dashed border-gray-300 text-gray-400 hover:border-[#9E8A9C] hover:text-[#9E8A9C] transition"
-                  >
-                    + Ajouter une sous-catégorie
-                  </button>
-                </div>
-              )}
-            </section>
-
-          
-            <section>
-              <p className="text-[10px] font-bold tracking-widest uppercase text-gray-700 mb-2">Stock</p>
-              <div className="space-y-0.5">
-                {[
-                  { key: "all", label: "Tous" },
-                  { key: "in", label: "En stock" },
-                  { key: "out", label: "Rupture" },
-                ].map(opt => (
-                  <button
-                    key={opt.key}
-                    onClick={() => setStockFilter(opt.key)}
-                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition ${
-                      stockFilter === opt.key
-                        ? "bg-[#EDE8F0] text-[#7A5E8A] font-medium"
-                        : "text-gray-500 hover:bg-gray-50"
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </section>
-          </div>
-
-
-          <main className="flex-1 overflow-y-auto p-6">
-            <div className="flex items-center justify-between mb-5">
-              <p className="text-sm text-gray-500">{filtered.length} produit(s)</p>
-              <button
-                onClick={() => setModal("product")}
-                className="bg-[#9E8A9C] hover:bg-[#8B7589] text-white px-4 py-2 rounded-lg text-sm font-medium transition shadow-sm"
-              >
-                + Ajouter un produit
-              </button>
-            </div>
-
-            {filtered.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-64 text-gray-300">
-                <p className="text-5xl mb-3">◇</p>
-                <p className="text-sm">Aucun produit trouvé</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
-                {filtered.map((p, i) => (
-                  <ProductCard key={p.id} product={p} index={i} />
-                ))}
-              </div>
-            )}
-          </main>
-        </div>
+        </section>
       </div>
 
-      {modal === "product" && (
-        <AddProductModal
-          categories={categories}
-          subCategories={subCategories}
-          onClose={() => setModal(null)}
-          onAdd={addProduct}
-        />
+      {/* ── Product grid ───────────────────────────────────── */}
+      <main className="flex-1 overflow-y-auto p-6">
+        <div className="flex items-center justify-between mb-5">
+          <p className="font-sans-custom font-semibold text-sm" style={{ color:"#5e4d4d" }}>
+            <span className="num font-bold text-[#1a1212]">{prods.length}</span> produit(s)
+          </p>
+          <button onClick={() => { setEditing(null); setModal('product'); }}
+            className="flex items-center gap-2 text-white px-4 py-2.5 rounded-xl font-sans-custom font-bold text-sm transition"
+            style={{ background:"linear-gradient(135deg,#9b6b7a,#b07585)", boxShadow:"0 4px 12px rgba(155,107,122,.28)" }}>
+            <Plus size={16} /> Ajouter un produit
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center h-64">
+            <p className="font-sans-custom text-sm" style={{ color:"#9a8585" }}>Chargement…</p>
+          </div>
+        ) : prods.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-64 gap-3">
+            <Package size={48} strokeWidth={1} style={{ color:"#d4c5be" }} />
+            <p className="font-sans-custom font-semibold text-sm" style={{ color:"#9a8585" }}>Aucun produit trouvé</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
+            {prods.map(p => (
+              <ProductCard key={p.id} product={p}
+                onEdit={p => { setEditing(p); setModal('editProduct'); }}
+                onDelete={p => setConfirm({ type:'product', item: p })} />
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* ── Modals ─────────────────────────────────────────── */}
+      {modal === 'product' && (
+        <ProductModal categories={categories} subCategories={subCategories}
+          initial={null} onClose={() => setModal(null)} onSave={handleAddProduct} />
       )}
-      {modal === "category" && (
-        <AddTextModal
-          title="Ajouter une catégorie"
-          placeholder="Nom de la catégorie"
-          onClose={() => setModal(null)}
-          onAdd={addCategory}
-        />
+      {modal === 'editProduct' && (
+        <ProductModal categories={categories} subCategories={subCategories}
+          initial={editing} onClose={() => { setModal(null); setEditing(null); }} onSave={handleEditProduct} />
       )}
-      {modal === "subcategory" && (
-        <AddTextModal
-          title={`Ajouter une sous-catégorie${activeCategory ? ` — ${activeCategory}` : ""}`}
-          placeholder="Nom de la sous-catégorie"
-          onClose={() => setModal(null)}
-          onAdd={addSubCategory}
-        />
+      {modal === 'category' && (
+        <TextModal title="Ajouter une catégorie" placeholder="Nom de la catégorie"
+          onClose={() => setModal(null)} onSave={handleAddCategory} />
+      )}
+      {modal === 'editCategory' && (
+        <TextModal title="Modifier la catégorie" placeholder="Nom" initial={editing?.name}
+          onClose={() => { setModal(null); setEditing(null); }} onSave={handleEditCategory} />
+      )}
+      {/* Confirm delete */}
+      {confirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setConfirm(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-80 p-6" onClick={e => e.stopPropagation()}>
+            <h2 className="font-sans-custom font-bold mb-2" style={{ fontSize:16, color:"#1a1212" }}>Confirmer la suppression</h2>
+            <p className="font-sans-custom text-sm mb-6" style={{ color:"#5e4d4d" }}>
+              Supprimer <strong>{confirm.item.name || confirm.item.name}</strong> ? Cette action est irréversible.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setConfirm(null)} className="px-4 py-2 rounded-xl border border-gray-200 font-sans-custom font-semibold text-sm" style={{ color:"#5e4d4d" }}>
+                Annuler
+              </button>
+              <button onClick={confirm.type === 'product' ? handleDeleteProduct : handleDeleteCategory}
+                className="px-4 py-2 rounded-xl text-white font-sans-custom font-bold text-sm" style={{ backgroundColor:"#ef4444" }}>
+                Supprimer
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
