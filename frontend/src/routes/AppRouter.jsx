@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import Layout from '../layout/Layout'
 import Accueil from '../pages/Accueil'
-import ProduitsCategories from '../pages/ProduitsCategories'
+import ProduitsCategories from '../pages/categoriesetproduit'
 import Clients from '../pages/Clients'
 import Login from '../pages/Login'
 
