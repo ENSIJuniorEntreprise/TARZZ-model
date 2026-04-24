@@ -1,22 +1,9 @@
 import { useState, useCallback, useMemo } from "react";
+import { PRODUCTS_DATA, categories, subCategories, subSubCategories } from "../data/productsDataComplete";
 
-
-const INITIAL_CATEGORIES = ["Chaînes", "Ensembles", "Bagues", "Bracelets", "Collections"];
-const INITIAL_SUBCATEGORIES = {
-  Chaînes: ["Gourmette", "Chaînes classiques"],
-  Ensembles: [],
-  Bagues: [],
-  Bracelets: [],
-  Collections: [],
-};
-const INITIAL_PRODUCTS = [
-  { id: 1, ref: "SZM-002", name: "Bracelet Médaillon", stock: 5, category: "Bracelets", subCategory: "Gourmette", image: null },
-  { id: 2, ref: "SZM-002", name: "Chaîne Fine Or", stock: 0, category: "Chaînes", subCategory: "Chaînes classiques", image: null },
-  { id: 3, ref: "SZM-002", name: "Chaîne Plate", stock: 0, category: "Chaînes", subCategory: "Chaînes classiques", image: null },
-  { id: 4, ref: "SZM-002", name: "Chaîne Figaro", stock: 1, category: "Chaînes", subCategory: "Gourmette", image: null },
-  { id: 5, ref: "SZM-002", name: "Chaîne Cordée", stock: 3, category: "Chaînes", subCategory: "Gourmette", image: null },
-  { id: 6, ref: "SZM-002", name: "Chaîne Maille", stock: 0, category: "Chaînes", subCategory: "Chaînes classiques", image: null },
-];
+const INITIAL_CATEGORIES = categories;
+const INITIAL_SUBCATEGORIES = subCategories;
+const INITIAL_PRODUCTS = PRODUCTS_DATA;
 
 
 function AddProductModal({ categories, subCategories, onClose, onAdd }) {
@@ -194,10 +181,12 @@ export default function App() {
   const [page, setPage] = useState("stock");
   const [categories, setCategories] = useState(INITIAL_CATEGORIES);
   const [subCategories, setSubCategories] = useState(INITIAL_SUBCATEGORIES);
+  const [subSubCategoriesData, setSubSubCategoriesData] = useState(subSubCategories);
   const [products, setProducts] = useState(INITIAL_PRODUCTS);
 
   const [activeCategory, setActiveCategory] = useState(null);
   const [activeSubCategory, setActiveSubCategory] = useState(null);
+  const [activeSubSubCategory, setActiveSubSubCategory] = useState(null);
   const [stockFilter, setStockFilter] = useState("all");
   const [search, setSearch] = useState("");
 
@@ -209,16 +198,22 @@ export default function App() {
     return subCategories[activeCategory] || [];
   }, [activeCategory, subCategories]);
 
+  const availableSubSubs = useMemo(() => {
+    if (!activeCategory || !activeSubCategory) return [];
+    return (subSubCategoriesData[activeCategory]?.[activeSubCategory] || []);
+  }, [activeCategory, activeSubCategory, subSubCategoriesData]);
+
  
   const filtered = useMemo(() => {
     return products.filter(p => {
       const matchSearch = !search || p.ref.toLowerCase().includes(search.toLowerCase()) || p.name.toLowerCase().includes(search.toLowerCase());
       const matchCat = !activeCategory || p.category === activeCategory;
       const matchSub = !activeSubCategory || p.subCategory === activeSubCategory;
+      const matchSubSub = !activeSubSubCategory || p.subSubCategory === activeSubSubCategory;
       const matchStock = stockFilter === "all" || (stockFilter === "in" && p.stock > 0) || (stockFilter === "out" && p.stock === 0);
-      return matchSearch && matchCat && matchSub && matchStock;
+      return matchSearch && matchCat && matchSub && matchSubSub && matchStock;
     });
-  }, [products, search, activeCategory, activeSubCategory, stockFilter]);
+  }, [products, search, activeCategory, activeSubCategory, activeSubSubCategory, stockFilter]);
 
   const addProduct = useCallback((p) => setProducts(ps => [...ps, p]), []);
 
@@ -237,12 +232,22 @@ export default function App() {
   }, [activeCategory]);
 
   const handleCategoryClick = (cat) => {
-    if (activeCategory === cat) { setActiveCategory(null); setActiveSubCategory(null); }
-    else { setActiveCategory(cat); setActiveSubCategory(null); }
+    if (activeCategory === cat) { setActiveCategory(null); setActiveSubCategory(null); setActiveSubSubCategory(null); }
+    else { setActiveCategory(cat); setActiveSubCategory(null); setActiveSubSubCategory(null); }
   };
 
   const handleSubClick = (sub) => {
-    setActiveSubCategory(s => s === sub ? null : sub);
+    if (activeSubCategory === sub) {
+      setActiveSubCategory(null);
+      setActiveSubSubCategory(null);
+    } else {
+      setActiveSubCategory(sub);
+      setActiveSubSubCategory(null);
+    }
+  };
+
+  const handleSubSubClick = (subSub) => {
+    setActiveSubSubCategory(s => s === subSub ? null : subSub);
   };
 
   return (
@@ -330,12 +335,6 @@ export default function App() {
                     {cat}
                   </button>
                 ))}
-                <button
-                  onClick={() => setModal("category")}
-                  className="px-2.5 py-1 rounded-full text-xs border border-dashed border-gray-300 text-gray-400 hover:border-[#9E8A9C] hover:text-[#9E8A9C] transition"
-                >
-                  + Ajouter une catégorie
-                </button>
               </div>
             </section>
 
@@ -343,6 +342,8 @@ export default function App() {
               <p className="text-[10px] font-bold tracking-widest uppercase text-gray-700 mb-2">Sous-Catégories</p>
               {!activeCategory ? (
                 <p className="text-xs text-gray-400 italic">Sélectionnez une catégorie</p>
+              ) : availableSubs.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">Aucune sous-catégorie</p>
               ) : (
                 <div className="flex flex-wrap gap-1.5">
                   {availableSubs.map(sub => (
@@ -358,12 +359,31 @@ export default function App() {
                       {sub}
                     </button>
                   ))}
-                  <button
-                    onClick={() => setModal("subcategory")}
-                    className="px-2.5 py-1 rounded-full text-xs border border-dashed border-gray-300 text-gray-400 hover:border-[#9E8A9C] hover:text-[#9E8A9C] transition"
-                  >
-                    + Ajouter une sous-catégorie
-                  </button>
+                </div>
+              )}
+            </section>
+
+            <section className="mb-5">
+              <p className="text-[10px] font-bold tracking-widest uppercase text-gray-700 mb-2">Sous-Sous-Catégories</p>
+              {!activeSubCategory ? (
+                <p className="text-xs text-gray-400 italic">Sélectionnez une sous-catégorie</p>
+              ) : availableSubSubs.length === 0 ? (
+                <p className="text-xs text-gray-400 italic">Aucune sous-sous-catégorie</p>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {availableSubSubs.map(subSub => (
+                    <button
+                      key={subSub}
+                      onClick={() => handleSubSubClick(subSub)}
+                      className={`px-2.5 py-1 rounded-full text-xs border transition ${
+                        activeSubSubCategory === subSub
+                          ? "bg-[#7A6B89] border-[#7A6B89] text-white"
+                          : "bg-white border-gray-300 text-gray-600 hover:border-[#9E8A9C]"
+                      }`}
+                    >
+                      {subSub}
+                    </button>
+                  ))}
                 </div>
               )}
             </section>
