@@ -4,6 +4,7 @@ import Layout from '../layout/Layout'
 import Accueil from '../pages/Accueil'
 import ProduitsCategories from '../pages/categoriesetproduit'
 import Clients from '../pages/Clients'
+import ClientDetail from '../pages/ClientDetail'
 import Login from '../pages/Login'
 import Espace from '../pages/Espace'
 
@@ -30,7 +31,8 @@ const AppRouter = () => (
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index            element={<Accueil />} />
         <Route path="produits"  element={<ProduitsCategories />} />
-        <Route path="clients"   element={<Clients />} />
+        <Route path="clients"          element={<Clients />} />
+        <Route path="clients/:id"      element={<ClientDetail />} />
         <Route path="espace"    element={<Espace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

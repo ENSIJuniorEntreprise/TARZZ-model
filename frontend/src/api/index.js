@@ -213,6 +213,25 @@ export const clients = {
   remove: (id)          => req('DELETE', `/clients/${id}`),
 };
 
+// ── Client Orders ─────────────────────────────────────────────────────────────
+export const clientOrders = {
+  list: async (clientId) => {
+    const payload = await req('GET', `/clients/${clientId}/orders`);
+    return pickData(payload) || [];
+  },
+  create: async (clientId, data) => {
+    const payload = await req('POST', `/clients/${clientId}/orders`, data);
+    return pickData(payload);
+  },
+  update: async (orderId, data) => {
+    const payload = await req('PUT', `/client-orders/${orderId}`, data);
+    return pickData(payload);
+  },
+  remove: async (orderId) => {
+    await req('DELETE', `/client-orders/${orderId}`);
+  },
+};
+
 // ── Orders ─────────────────────────────────────────────────────────────────────
 export const orders = {
   list: async filters => {
