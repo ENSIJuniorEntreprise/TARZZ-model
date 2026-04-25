@@ -8,33 +8,16 @@ const clientOrderSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
-    productName: {
-      type: String,
-      required: true,
-      trim: true,
-      maxlength: 200,
-    },
-    productCategory: {
-      type: String,
-      default: '',
-      trim: true,
-      maxlength: 100,
-    },
-    date: {
-      type: Date,
-      default: Date.now,
-    },
-    status: {
-      type: String,
-      enum: ['en_commande', 'en_cours', 'livre'],
-      default: 'en_commande',
-    },
-    remarque: {
-      type: String,
-      default: '',
-      trim: true,
-      maxlength: 1000,
-    },
+    items: [
+      {
+        productName:     { type: String, required: true, trim: true, maxlength: 200 },
+        productCategory: { type: String, default: '', trim: true, maxlength: 200 },
+        quantity:        { type: Number, default: 1, min: 1 },
+      },
+    ],
+    date:     { type: Date, default: Date.now },
+    status:   { type: String, enum: ['en_commande', 'en_cours', 'livre'], default: 'en_commande' },
+    remarque: { type: String, default: '', trim: true, maxlength: 1000 },
   },
   { timestamps: true }
 );

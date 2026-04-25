@@ -78,7 +78,7 @@ export default function Login() {
                 <input
                   type="email"
                   className={`login-input${error ? ' error' : ''}`}
-                  placeholder="admin@hajtajeb.com"
+                  placeholder=""
                   value={email}
                   onChange={e => { setEmail(e.target.value); setError('') }}
                   autoComplete="email"
@@ -96,7 +96,7 @@ export default function Login() {
                 <input
                   type={showPwd ? 'text' : 'password'}
                   className={`login-input${error ? ' error' : ''}`}
-                  placeholder="••••••••"
+                  placeholder=""
                   value={password}
                   onChange={e => { setPassword(e.target.value); setError('') }}
                   style={{ paddingRight: 44 }}

@@ -1,5 +1,10 @@
 import { useState, useMemo, useEffect } from "react";
 import { Package, Folder, ChevronRight, ChevronDown } from "lucide-react";
+import {
+  loadStocks, updateStock as persistStock,
+  idToKey, initStocks, getByKey,
+  DEFAULT_STOCK, LOW_STOCK_THRESHOLD,
+} from "../utils/stock";
 
 // ── Construction de l'arbre depuis assets/ ────────────────────────────────────
 const rawModules = import.meta.glob(
@@ -28,7 +33,7 @@ function buildTree(modules) {
       if (!node.children[sub]) node.children[sub] = { images: [], children: {} };
       node = node.children[sub];
     }
-    node.images.push({ name, url: mod.default, displayName: name });
+    node.images.push({ id: path, name, url: mod.default, displayName: name });
   });
 
   // Pour KY1/KY2 : le nom affiché = chemin des sous-dossiers (pas le nom de fichier)
@@ -79,15 +84,10 @@ function sortedChildren(node) {
 }
 
 // ── Stock ─────────────────────────────────────────────────────────────────────
-const STOCK_KEY = "tarzz_stocks_v1";
-const loadStocks = () => { try { return JSON.parse(localStorage.getItem(STOCK_KEY) || "{}"); } catch { return {}; } };
-const saveStocks = s => localStorage.setItem(STOCK_KEY, JSON.stringify(s));
-const sKey = (path, img) => `${path.join("/")}||${img}`;
-
 function statusProps(s) {
-  if (s === 0) return { bg: "#FAE8E8", color: "#B04040", label: "Rupture" };
-  if (s <= 3)  return { bg: "#FFF7ED", color: "#C2410C", label: "Faible" };
-  return            { bg: "#EAF5EC", color: "#3D7A47",  label: "En stock" };
+  if (s === 0)                   return { bg: "#FAE8E8", color: "#B04040", label: "Rupture" };
+  if (s <= LOW_STOCK_THRESHOLD)  return { bg: "#FFF7ED", color: "#C2410C", label: "Faible"  };
+  return                                { bg: "#EAF5EC", color: "#3D7A47",  label: "En stock" };
 }
 
 const STOCK_FILTERS = [
@@ -162,18 +162,21 @@ export default function ProduitsCategories() {
   const first = CATEGORIES[0] || null;
   const [activePath, setActivePath] = useState(first ? [first] : null);
   const [expanded, setExpanded]     = useState(() => new Set(first ? [first] : []));
-  const [stocks, setStocks]         = useState(loadStocks);
+  const [stocks, setStocks]         = useState(() => initStocks(Object.keys(rawModules)));
   const [editingKey, setEditingKey] = useState(null);
   const [search, setSearch]         = useState("");
   const [stockFilter, setStockFilter] = useState("all");
 
-  const getStock = (path, name) => stocks[sKey(path, name)] ?? 0;
+  useEffect(() => {
+    const handler = () => setStocks(loadStocks());
+    window.addEventListener('tarzz-stock-changed', handler);
+    return () => window.removeEventListener('tarzz-stock-changed', handler);
+  }, []);
 
-  const updateStock = (path, name, val) => {
-    const n = Math.max(0, parseInt(val, 10) || 0);
-    const next = { ...stocks, [sKey(path, name)]: n };
-    setStocks(next);
-    saveStocks(next);
+  const getStock = imgId => getByKey(idToKey(imgId), stocks);
+
+  const doUpdateStock = (imgId, val) => {
+    persistStock(idToKey(imgId), Math.max(0, parseInt(val, 10) || 0));
   };
 
   const toggleExpanded = pathStr => {
@@ -208,10 +211,10 @@ export default function ProduitsCategories() {
     }
     if (stockFilter !== "all") {
       list = list.filter(p => {
-        const s = getStock(activePath, p.name);
+        const s = getStock(p.id);
         if (stockFilter === "out") return s === 0;
-        if (stockFilter === "low") return s > 0 && s <= 3;
-        if (stockFilter === "in")  return s > 3;
+        if (stockFilter === "low") return s > 0 && s <= LOW_STOCK_THRESHOLD;
+        if (stockFilter === "in")  return s > LOW_STOCK_THRESHOLD;
         return true;
       });
     }
@@ -393,12 +396,12 @@ export default function ProduitsCategories() {
             )}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
               {images.map(p => {
-                const stock = getStock(activePath, p.name);
-                const st = statusProps(stock);
-                const key = sKey(activePath, p.name);
+                const stock = getStock(p.id);
+                const st    = statusProps(stock);
+                const eKey  = idToKey(p.id);
                 return (
                   <div
-                    key={key}
+                    key={eKey}
                     className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-md transition-shadow"
                   >
                     <div className="bg-[#f4f4f5] flex items-center justify-center h-36">
@@ -416,10 +419,10 @@ export default function ProduitsCategories() {
                       <div
                         className="mt-2 py-1.5 rounded-lg text-xs font-bold text-center cursor-pointer select-none"
                         style={{ backgroundColor: st.bg, color: st.color }}
-                        onClick={() => setEditingKey(key)}
+                        onClick={() => setEditingKey(eKey)}
                         title="Cliquer pour modifier le stock"
                       >
-                        {editingKey === key ? (
+                        {editingKey === eKey ? (
                           <input
                             autoFocus
                             type="number"
@@ -428,9 +431,9 @@ export default function ProduitsCategories() {
                             className="w-full text-center bg-transparent outline-none font-bold"
                             style={{ color: st.color }}
                             onClick={e => e.stopPropagation()}
-                            onBlur={e => { updateStock(activePath, p.name, e.target.value); setEditingKey(null); }}
+                            onBlur={e => { doUpdateStock(p.id, e.target.value); setEditingKey(null); }}
                             onKeyDown={e => {
-                              if (e.key === "Enter") { updateStock(activePath, p.name, e.target.value); setEditingKey(null); }
+                              if (e.key === "Enter") { doUpdateStock(p.id, e.target.value); setEditingKey(null); }
                               if (e.key === "Escape") setEditingKey(null);
                             }}
                           />

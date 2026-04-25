@@ -1,82 +1,59 @@
-const Product = require('../models/Product');
 const Client = require('../models/Client');
-const Order = require('../models/Order');
+const ClientOrder = require('../models/ClientOrder');
+
+const MONTHS_FR = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep','Oct','Nov','Déc'];
 
 const getDashboardStats = async () => {
-  const [totalProducts, totalClients, lowStockProducts, outOfStock, lowStock, stockValueAgg, recentOrders] = await Promise.all([
-    Product.countDocuments(),
+  const [
+    totalClients,
+    delivered,
+    inProgress,
+    enCommande,
+    recentOrders,
+    monthlyAgg,
+  ] = await Promise.all([
     Client.countDocuments(),
-    Product.find({ stockQuantity: { $lte: 3 } })
-      .populate('category', 'name')
-      .sort({ stockQuantity: 1 })
-      .limit(10),
-    Product.countDocuments({ stockQuantity: 0 }),
-    Product.countDocuments({ stockQuantity: { $gt: 0, $lte: 3 } }),
-    Product.aggregate([
-      {
-        $group: {
-          _id: null,
-          totalStockValue: { $sum: { $multiply: ['$stockQuantity', '$sellingPrice'] } },
-        },
-      },
-    ]),
-    Order.find({})
+    ClientOrder.countDocuments({ status: 'livre' }),
+    ClientOrder.countDocuments({ status: 'en_cours' }),
+    ClientOrder.countDocuments({ status: 'en_commande' }),
+    ClientOrder.find({})
       .populate('client', 'firstName lastName')
       .sort({ date: -1 })
       .limit(6),
-  ]);
-
-  const orderStats = await Order.aggregate([
-    {
-      $group: {
-        _id: '$status',
-        count: { $sum: 1 },
+    ClientOrder.aggregate([
+      {
+        $group: {
+          _id: { year: { $year: '$date' }, month: { $month: '$date' } },
+          count: { $sum: 1 },
+        },
       },
-    },
+      { $sort: { '_id.year': 1, '_id.month': 1 } },
+    ]),
   ]);
 
-  const ordersByStatus = orderStats.reduce(
-    (acc, item) => ({ ...acc, [item._id]: item.count }),
-    { pending: 0, in_progress: 0, delivered: 0 }
-  );
-
-  const toLegacyStatus = status => {
-    if (status === 'delivered') return 'Livre';
-    if (status === 'in_progress') return 'En cours';
-    return 'Non commence';
-  };
-
-  const mappedLowStockProducts = lowStockProducts.map(p => ({
-    id: p._id,
-    name: p.name,
-    image: p.image,
-    stock: p.stockQuantity,
-    stockQuantity: p.stockQuantity,
-    category_name: p.category?.name || null,
-    category: p.category,
+  const monthlyStats = monthlyAgg.map(m => ({
+    mois:      MONTHS_FR[m._id.month - 1],
+    commandes: m.count,
+    year:      m._id.year,
+    month:     m._id.month,
   }));
 
   const recentPurchases = recentOrders.map(order => ({
-    id: order._id,
-    first_name: order.client?.firstName || '',
-    last_name: order.client?.lastName || '',
-    date: order.date,
-    amount: order.totalAmount,
-    status: toLegacyStatus(order.status),
+    id:        order._id,
+    firstName: order.client?.firstName || '',
+    lastName:  order.client?.lastName  || '',
+    date:      order.date,
+    itemCount: (order.items || []).length,
+    status:    order.status,
   }));
 
   return {
-    totalStockValue: stockValueAgg[0]?.totalStockValue || 0,
-    totalProducts,
-    lowStockProducts: mappedLowStockProducts,
     totalClients,
-    ordersByStatus,
-    delivered: ordersByStatus.delivered,
-    inProgress: ordersByStatus.in_progress,
-    notStarted: ordersByStatus.pending,
-    outOfStock,
-    lowStock,
+    delivered,
+    inProgress,
+    enCommande,
     recentPurchases,
+    monthlyStats,
   };
 };
 

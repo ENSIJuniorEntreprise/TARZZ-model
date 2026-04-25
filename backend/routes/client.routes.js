@@ -45,7 +45,8 @@ router.post(
   '/:id/orders',
   [
     param('id').isMongoId().withMessage('Invalid client id'),
-    body('productName').trim().notEmpty().withMessage('productName is required'),
+    body('items').isArray({ min: 1 }).withMessage('items must be a non-empty array'),
+    body('items.*.productName').notEmpty().withMessage('productName is required for each item'),
     body('status').optional().isIn(['en_commande', 'en_cours', 'livre']),
     body('date').optional().isISO8601(),
   ],
