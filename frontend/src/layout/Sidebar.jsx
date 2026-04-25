@@ -110,7 +110,7 @@ const Sidebar = () => {
               >
                 <Images size={15} />
               </span>
-              <span style={{ color: isActive ? "#ffffff" : "#2e1e1e" }}>Photos</span>
+              <span style={{ color: isActive ? "#ffffff" : "#2e1e1e" }}>Espace</span>
             </>
           )}
         </NavLink>
