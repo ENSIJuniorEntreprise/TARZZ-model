@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { LayoutGrid, List, Users, LogOut } from 'lucide-react'
+import { LayoutGrid, List, Users, LogOut, Images } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 const navItems = [
@@ -80,6 +80,41 @@ const Sidebar = () => {
           </NavLink>
         ))}
       </nav>
+
+      {/* Espace isolé */}
+      <div className="px-3 pb-3" style={{ borderTop: "1px solid #ede5df" }}>
+        <div
+          className="mt-3 mb-1 px-2 font-sans-custom font-bold uppercase"
+          style={{ fontSize: "10px", letterSpacing: "0.20em", color: "#9b8095" }}
+        >
+          Espace
+        </div>
+        <NavLink
+          to="/espace"
+          className={({ isActive }) =>
+            `nav-item gap-3 px-3 py-2.5 rounded-xl ${isActive ? "active" : ""}`
+          }
+          style={({ isActive }) => ({
+            background: isActive ? "linear-gradient(135deg,#9B6B9A,#C9B8D8)" : undefined,
+          })}
+        >
+          {({ isActive }) => (
+            <>
+              <span
+                className="flex items-center justify-center w-7 h-7 rounded-lg flex-shrink-0"
+                style={{
+                  backgroundColor: isActive ? "rgba(255,255,255,0.22)" : "#F0EAF7",
+                  color: isActive ? "#ffffff" : "#9B6B9A",
+                  transition: "background-color 0.2s",
+                }}
+              >
+                <Images size={15} />
+              </span>
+              <span style={{ color: isActive ? "#ffffff" : "#2e1e1e" }}>Photos</span>
+            </>
+          )}
+        </NavLink>
+      </div>
 
       {/* Footer / Logout */}
       <div className="px-3 pb-4 pt-2" style={{ borderTop: "1px solid #ede5df" }}>

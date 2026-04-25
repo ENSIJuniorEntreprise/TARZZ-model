@@ -5,6 +5,7 @@ import Accueil from '../pages/Accueil'
 import ProduitsCategories from '../pages/categoriesetproduit'
 import Clients from '../pages/Clients'
 import Login from '../pages/Login'
+import Espace from '../pages/Espace'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -30,6 +31,7 @@ const AppRouter = () => (
         <Route index            element={<Accueil />} />
         <Route path="produits"  element={<ProduitsCategories />} />
         <Route path="clients"   element={<Clients />} />
+        <Route path="espace"    element={<Espace />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
