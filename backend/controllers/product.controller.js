@@ -1,29 +1,51 @@
+const mongoose = require('mongoose');
 const catchAsync = require('../utils/catchAsync');
-const productService = require('../services/product.service');
+const Product = require('../models/Product');
+const Category = require('../models/Category');
+const ApiError = require('../utils/ApiError');
 
 const getProducts = catchAsync(async (req, res) => {
-  const result = await productService.listProducts(req.query);
-  res.status(200).json({ success: true, ...result });
+  const filter = {};
+  if (req.query.category) filter.category = req.query.category;
+  const products = await Product.find(filter).populate('category', 'name parent').sort({ name: 1 });
+  res.json({ success: true, data: products });
 });
 
 const createProduct = catchAsync(async (req, res) => {
-  const product = await productService.createProduct(req.body, req.file);
+  const { name, category, stock } = req.body;
+  if (!name || !name.trim()) throw new ApiError(400, 'name is required');
+  if (!mongoose.Types.ObjectId.isValid(category)) throw new ApiError(400, 'Invalid category id');
+  const cat = await Category.findById(category);
+  if (!cat) throw new ApiError(404, 'Category not found');
+  const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+  const product = await Product.create({
+    name: name.trim(),
+    category,
+    imageUrl,
+    stock: stock !== undefined ? Math.max(0, parseInt(stock) || 0) : 20,
+  });
+  await product.populate('category', 'name parent');
   res.status(201).json({ success: true, data: product });
 });
 
 const updateProduct = catchAsync(async (req, res) => {
-  const product = await productService.updateProduct(req.params.id, req.body, req.file);
-  res.status(200).json({ success: true, data: product });
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) throw new ApiError(400, 'Invalid product id');
+  const update = {};
+  if (req.body.name     !== undefined) update.name     = String(req.body.name).trim();
+  if (req.body.category !== undefined) update.category = req.body.category;
+  if (req.body.stock    !== undefined) update.stock    = Math.max(0, parseInt(req.body.stock) || 0);
+  if (req.file) update.imageUrl = `/uploads/${req.file.filename}`;
+  const product = await Product.findByIdAndUpdate(req.params.id, update, { new: true, runValidators: true })
+    .populate('category', 'name parent');
+  if (!product) throw new ApiError(404, 'Product not found');
+  res.json({ success: true, data: product });
 });
 
 const deleteProduct = catchAsync(async (req, res) => {
-  await productService.deleteProduct(req.params.id);
-  res.status(200).json({ success: true, message: 'Product deleted' });
+  if (!mongoose.Types.ObjectId.isValid(req.params.id)) throw new ApiError(400, 'Invalid product id');
+  const product = await Product.findByIdAndDelete(req.params.id);
+  if (!product) throw new ApiError(404, 'Product not found');
+  res.json({ success: true, data: null });
 });
 
-module.exports = {
-  getProducts,
-  createProduct,
-  updateProduct,
-  deleteProduct,
-};
+module.exports = { getProducts, createProduct, updateProduct, deleteProduct };

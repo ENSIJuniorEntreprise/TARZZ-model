@@ -5,20 +5,23 @@ const { protect } = require('../middlewares/auth.middleware');
 const { validate } = require('../middlewares/validate.middleware');
 
 const router = express.Router();
-
 router.use(protect);
 
 router.get('/', categoryController.getCategories);
-
-router.post('/', [body('name').trim().isLength({ min: 2, max: 80 })], validate, categoryController.createCategory);
-
-router.put(
-  '/:id',
-  [param('id').isMongoId().withMessage('Invalid category id'), body('name').trim().isLength({ min: 2, max: 80 })],
+router.post('/',
+  [body('name').trim().isLength({ min: 1, max: 100 })],
+  validate,
+  categoryController.createCategory
+);
+router.put('/:id',
+  [param('id').isMongoId(), body('name').optional().trim().isLength({ min: 1, max: 100 })],
   validate,
   categoryController.updateCategory
 );
-
-router.delete('/:id', [param('id').isMongoId().withMessage('Invalid category id')], validate, categoryController.deleteCategory);
+router.delete('/:id',
+  [param('id').isMongoId()],
+  validate,
+  categoryController.deleteCategory
+);
 
 module.exports = router;

@@ -83,85 +83,36 @@ export const dashboard = {
   },
 };
 
-// ── Categories ────────────────────────────────────────────────────────────────
-export const categories = {
-  list: async (filters = {}) => {
-    const qs = new URLSearchParams(filters).toString();
-    const payload = await req('GET', `/categories${qs ? `?${qs}` : ''}`);
-    const list = (pickData(payload) || []).map(mapCategory);
-    return { categories: list, subCategories: [], meta: payload.meta || null };
+// ── Catalogue DB (catégories + produits CRUD) ─────────────────────────────────
+export const catalog = {
+  listCategories: async () => pickData(await req('GET', '/categories')) || [],
+  createCategory: async data  => pickData(await req('POST', '/categories', data)),
+  updateCategory: async (id, data) => pickData(await req('PUT', `/categories/${id}`, data)),
+  deleteCategory: async id   => { await req('DELETE', `/categories/${id}`); },
+
+  listProducts: async (categoryId) => {
+    const qs = categoryId ? `?category=${categoryId}` : '';
+    return pickData(await req('GET', `/products${qs}`)) || [];
   },
-  create: async name => {
-    const payload = await req('POST', '/categories', { name });
-    return mapCategory(pickData(payload));
-  },
-  update: async (id, name) => {
-    const payload = await req('PUT', `/categories/${id}`, { name });
-    return mapCategory(pickData(payload));
-  },
-  remove: id => req('DELETE', `/categories/${id}`),
-  createSub: () => Promise.reject(new Error('Les sous-categories ne sont pas prises en charge par cette version API.')),
-  removeSub: () => Promise.reject(new Error('Les sous-categories ne sont pas prises en charge par cette version API.')),
+  createProduct: async (formData) => pickData(await req('POST', '/products', formData, true)),
+  updateProduct: async (id, formData) => pickData(await req('PUT', `/products/${id}`, formData, true)),
+  deleteProduct: async id => { await req('DELETE', `/products/${id}`); },
 };
 
-// ── Products ──────────────────────────────────────────────────────────────────
-export const products = {
-  list: async (filters = {}) => {
-    const normalized = { ...filters };
-    if (normalized.category_id) {
-      normalized.category = normalized.category_id;
-      delete normalized.category_id;
-    }
+// ── Fournisseurs ──────────────────────────────────────────────────────────────
+export const fournisseurs = {
+  list: async (search = '') => pickData(await req('GET', `/fournisseurs${search ? `?search=${encodeURIComponent(search)}` : ''}`)) || [],
+  get:    async id   => pickData(await req('GET',    `/fournisseurs/${id}`)),
+  create: async data => pickData(await req('POST',   '/fournisseurs', data)),
+  update: async (id, data) => pickData(await req('PUT', `/fournisseurs/${id}`, data)),
+  remove: async id   => { await req('DELETE', `/fournisseurs/${id}`); },
+};
 
-    Object.keys(normalized).forEach(key => {
-      if (normalized[key] === undefined || normalized[key] === null || normalized[key] === '') {
-        delete normalized[key];
-      }
-    });
-
-    const qs = new URLSearchParams(normalized).toString();
-    const payload = await req('GET', `/products${qs ? '?' + qs : ''}`);
-    const list = (pickData(payload) || []).map(mapProduct);
-    return list;
-  },
-  create: async formData => {
-    const fd = new FormData();
-    const reference = formData.get('ref') || formData.get('reference') || `REF-${Date.now()}`;
-    fd.append('name', formData.get('name') || '');
-    fd.append('reference', reference);
-    fd.append('description', formData.get('description') || '');
-    fd.append('purchasePrice', formData.get('purchase_price') || formData.get('purchasePrice') || 0);
-    fd.append('sellingPrice', formData.get('sale_price') || formData.get('sellingPrice') || 0);
-    fd.append('stockQuantity', formData.get('stock') || formData.get('stockQuantity') || 0);
-    fd.append('category', formData.get('category_id') || formData.get('category') || '');
-    if (formData.get('image')) fd.append('image', formData.get('image'));
-    const payload = await req('POST', '/products', fd, true);
-    return mapProduct(pickData(payload));
-  },
-  update: async (id, formData) => {
-    const fd = new FormData();
-    if (formData.get('name') !== null) fd.append('name', formData.get('name'));
-    if (formData.get('ref') !== null || formData.get('reference') !== null) {
-      fd.append('reference', formData.get('ref') || formData.get('reference') || `REF-${Date.now()}`);
-    }
-    if (formData.get('description') !== null) fd.append('description', formData.get('description'));
-    if (formData.get('purchase_price') !== null || formData.get('purchasePrice') !== null) {
-      fd.append('purchasePrice', formData.get('purchase_price') || formData.get('purchasePrice') || 0);
-    }
-    if (formData.get('sale_price') !== null || formData.get('sellingPrice') !== null) {
-      fd.append('sellingPrice', formData.get('sale_price') || formData.get('sellingPrice') || 0);
-    }
-    if (formData.get('stock') !== null || formData.get('stockQuantity') !== null) {
-      fd.append('stockQuantity', formData.get('stock') || formData.get('stockQuantity') || 0);
-    }
-    if (formData.get('category_id') !== null || formData.get('category') !== null) {
-      fd.append('category', formData.get('category_id') || formData.get('category') || '');
-    }
-    if (formData.get('image')) fd.append('image', formData.get('image'));
-    const payload = await req('PUT', `/products/${id}`, fd, true);
-    return mapProduct(pickData(payload));
-  },
-  remove: (id) => req('DELETE', `/products/${id}`),
+export const fournisseurOrders = {
+  list:   async fId  => pickData(await req('GET',  `/fournisseurs/${fId}/orders`)) || [],
+  create: async (fId, data) => pickData(await req('POST', `/fournisseurs/${fId}/orders`, data)),
+  update: async (id, data)  => pickData(await req('PUT',  `/fournisseur-orders/${id}`, data)),
+  remove: async id   => { await req('DELETE', `/fournisseur-orders/${id}`); },
 };
 
 // ── Clients ───────────────────────────────────────────────────────────────────
