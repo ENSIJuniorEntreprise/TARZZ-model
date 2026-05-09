@@ -5,9 +5,8 @@ import { useAuth } from '../context/AuthContext'
 const navItems = [
   { label: "Dashboard",           icon: LayoutGrid, to: "/" },
   { label: "Catégories & Stock",  icon: List,        to: "/produits" },
-  { label: "Catalogue",           icon: Package,     to: "/catalogue" },
   { label: "Clients",             icon: Users,       to: "/clients" },
-  { label: "Fournisseurs",        icon: Truck,       to: "/fournisseurs" },
+  { label: "Créer Commande F.",   icon: Truck,       to: "/fournisseurs" },
 ]
 
 const Sidebar = () => {

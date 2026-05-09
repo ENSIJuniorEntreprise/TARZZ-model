@@ -53,10 +53,21 @@ function ItemRow({ item, onChange, onRemove }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5">
       <div className="flex-1 min-w-0">
-        <input value={item.productName} onChange={e => onChange({ ...item, productName: e.target.value })}
-          placeholder="Nom du produit…" className="w-full text-sm font-medium outline-none bg-transparent" style={{ color: '#1a1212' }} />
-        <input value={item.productCategory} onChange={e => onChange({ ...item, productCategory: e.target.value })}
-          placeholder="Catégorie (optionnel)" className="w-full text-xs outline-none bg-transparent mt-0.5" style={{ color: '#9a8585' }} />
+        <select 
+          value={`${item.productCategory}|${item.productName}`}
+          onChange={e => {
+            const [cat, name] = e.target.value.split('|');
+            onChange({ ...item, productName: name, productCategory: cat });
+          }}
+          className="w-full text-sm font-medium outline-none bg-transparent" style={{ color: '#1a1212' }}
+        >
+          <option value="|" disabled>Sélectionner un produit…</option>
+          {CATALOG_FLAT.map(p => (
+            <option key={p.stockId} value={`${p.category}|${p.name}`}>
+              {p.category ? `${p.category} / ` : ''}{p.name}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
         <button onClick={() => onChange({ ...item, quantity: Math.max(1, item.quantity - 1) })}
@@ -281,26 +292,15 @@ export default function FournisseurDetail() {
 
   return (
     <div className="flex-1 overflow-y-auto p-8 bg-white" style={font}>
-      <button onClick={() => navigate('/fournisseurs')} className="flex items-center gap-2 text-sm font-semibold mb-7 hover:opacity-70 transition" style={{ color: '#9a8585' }}>
-        <ArrowLeft size={16} /> Fournisseurs
-      </button>
-
-      {/* Info fournisseur */}
-      <div className="flex items-center gap-6 mb-8 flex-wrap">
-        <div className="w-20 h-20 rounded-full flex items-center justify-center flex-shrink-0"
-          style={{ background: 'linear-gradient(135deg,#e8f0f8,#dce8f4)', color: accent }}>
-          <Truck size={36} />
-        </div>
+      {/* Container d'entête */}
+      <div className="flex items-center justify-between mb-8 flex-wrap">
         <div>
-          <h1 className="font-bold mb-3" style={{ fontSize: 24, color: '#1a1212', fontFamily: "'DM Serif Display', serif" }}>
-            {fournisseur.prenom} {fournisseur.nom}
+          <h1 className="font-bold text-2xl" style={{ color: '#1a1212', fontFamily: "'DM Serif Display', serif" }}>
+            Commandes Fournisseur
           </h1>
-          <div className="flex flex-wrap gap-5">
-            {fournisseur.societe && <div className="flex items-center gap-2"><Building2 size={14} style={{ color: accent }} /><span className="text-sm" style={{ color: '#5e4d4d' }}>{fournisseur.societe}</span></div>}
-            {fournisseur.phone   && <div className="flex items-center gap-2"><Phone     size={14} style={{ color: accent }} /><span className="text-sm" style={{ color: '#5e4d4d' }}>{fournisseur.phone}</span></div>}
-            {fournisseur.email   && <div className="flex items-center gap-2"><Mail      size={14} style={{ color: accent }} /><span className="text-sm" style={{ color: '#5e4d4d' }}>{fournisseur.email}</span></div>}
-            {fournisseur.adresse && <div className="flex items-center gap-2"><MapPin    size={14} style={{ color: accent }} /><span className="text-sm" style={{ color: '#5e4d4d' }}>{fournisseur.adresse}</span></div>}
-          </div>
+          <p className="text-sm font-medium mt-1" style={{ color: '#9a8585' }}>
+            Gestion centralisée de vos commandes avec votre fournisseur de produits
+          </p>
         </div>
       </div>
 

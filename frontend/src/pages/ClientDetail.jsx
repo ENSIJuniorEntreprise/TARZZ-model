@@ -11,7 +11,7 @@ import {
   DEFAULT_STOCK, LOW_STOCK_THRESHOLD,
 } from '../utils/stock';
 
-// ── Catalogue (build-time) ────────────────────────────────────────────────────
+// ── Products (build-time) ────────────────────────────────────────────────────
 const RAW_MODULES = import.meta.glob(
   '../../assets/**/*.{png,jpg,jpeg,webp,PNG,JPG,JPEG}',
   { eager: true }
@@ -293,7 +293,7 @@ function CartOrderModal({ onClose, onSave }) {
         </div>
 
         <div className="flex flex-1 min-h-0">
-          {/* ── Left: catalogue ── */}
+          {/* ── Left: products ── */}
           <div className="flex-1 flex flex-col border-r border-gray-100 min-w-0">
             <div className="px-4 py-3 border-b border-gray-100 flex-shrink-0">
               <div className="relative">

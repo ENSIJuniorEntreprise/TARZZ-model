@@ -36,7 +36,7 @@ const seedDefaultAdmin = async () => {
   const existing = await Admin.findOne({ email: env.adminEmail.toLowerCase() });
   if (existing) return existing;
 
-  return Admin.create({
+  return await Admin.create({
     email: env.adminEmail.toLowerCase(),
     password: env.adminPassword,
   });

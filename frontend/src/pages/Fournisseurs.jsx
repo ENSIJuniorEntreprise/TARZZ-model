@@ -118,7 +118,20 @@ export default function Fournisseurs() {
 
   const load = async () => {
     setLoading(true); setError('');
-    try { setList(await api.list()); }
+    try { 
+      const res = await api.list(); 
+      if (res.length > 0) {
+        navigate(`/fournisseurs/${res[0]._id}`, { replace: true });
+        return;
+      } else {
+        // Create the unique supplier if it doesn't exist
+        const f = await api.create({
+          nom: 'Principal', prenom: 'Fournisseur', societe: 'Fournisseur Unique'
+        });
+        navigate(`/fournisseurs/${f._id}`, { replace: true });
+        return;
+      }
+    }
     catch (e) { setError(e.message || 'Erreur de chargement'); }
     finally { setLoading(false); }
   };
@@ -140,10 +153,6 @@ export default function Fournisseurs() {
     <div className="flex-1 overflow-y-auto p-8 bg-white" style={font}>
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <h1 className="font-bold" style={{ fontSize: 28, color: '#1a1212', fontFamily: "'DM Serif Display', serif" }}>Fournisseurs</h1>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold hover:opacity-90 transition"
-          style={{ background: 'linear-gradient(135deg,#5a7a9b,#7a9ab5)', boxShadow: '0 4px 12px rgba(90,122,155,.28)' }}>
-          <Plus size={16} /> Ajouter un fournisseur
-        </button>
       </div>
 
       <div className="relative mb-6 max-w-md">
