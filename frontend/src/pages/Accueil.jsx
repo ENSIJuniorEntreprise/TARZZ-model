@@ -66,7 +66,7 @@ export default function Accueil() {
             </p>
             <div className="flex items-center justify-between">
               <h1 className="font-bold" style={{ fontSize: "42px", color: "#1a1212", letterSpacing: "0.01em", lineHeight: 1.1, fontFamily: "'DM Serif Display', serif" }}>
-                Hajtajeb Modèles
+                Hajtayeb Modèles
               </h1>
               <button
                 onClick={() => setPage("stats")}

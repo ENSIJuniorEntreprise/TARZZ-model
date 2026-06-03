@@ -44,7 +44,7 @@ export default function Login() {
         {/* Logo */}
         <div className="text-center mb-10">
           <div style={{ fontFamily:'Cormorant Garamond,serif', fontSize:36, fontWeight:700, color:'#1a1212', letterSpacing:'0.03em', lineHeight:1 }}>
-            HAJTAJEB<span style={{ color:'#9b6b7a' }}> Model</span>
+            HAJTAYEB<span style={{ color:'#9b6b7a' }}> Model</span>
           </div>
           <div style={{ fontFamily:'DM Sans,sans-serif', fontSize:12, color:'#9b8095', letterSpacing:'0.14em', marginTop:8, fontWeight:500 }}>
             TABLEAU DE BORD ADMINISTRATEUR
