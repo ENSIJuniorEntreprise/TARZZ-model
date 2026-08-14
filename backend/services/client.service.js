@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const Client = require('../models/Client');
-const Order = require('../models/Order');
 const ApiError = require('../utils/ApiError');
 const { parsePagination, buildMeta, parseSort, toRegex } = require('../utils/query');
 
@@ -61,8 +60,6 @@ const deleteClient = async id => {
 
   const deleted = await Client.findByIdAndDelete(id);
   if (!deleted) throw new ApiError(404, 'Client not found');
-
-  await Order.deleteMany({ client: id });
 };
 
 module.exports = {

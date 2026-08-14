@@ -59,15 +59,6 @@ const options = {
             address: { type: 'string' },
           },
         },
-        Order: {
-          type: 'object',
-          properties: {
-            _id: { type: 'string' },
-            status: { type: 'string', enum: ['pending', 'in_progress', 'delivered'] },
-            totalItems: { type: 'number' },
-            totalAmount: { type: 'number' },
-          },
-        },
       },
     },
   },

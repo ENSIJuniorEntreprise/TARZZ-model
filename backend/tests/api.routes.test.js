@@ -40,12 +40,6 @@ jest.mock('../services/client.service', () => ({
   deleteClient: jest.fn(async () => undefined),
 }));
 
-jest.mock('../services/order.service', () => ({
-  listOrders: jest.fn(async () => ({ data: [{ _id: 'order1', totalItems: 2, totalAmount: 300 }], meta: { total: 1 } })),
-  createOrder: jest.fn(async () => ({ _id: 'order1', totalItems: 2, totalAmount: 300 })),
-  updateOrderStatus: jest.fn(async () => ({ _id: 'order1', status: 'delivered' })),
-}));
-
 jest.mock('../services/dashboard.service', () => ({
   getDashboardStats: jest.fn(async () => ({
     totalStockValue: 1000,
@@ -109,20 +103,6 @@ describe('API route tests (mocked services)', () => {
     const res = await request(app).get('/api/clients').set('Authorization', 'Bearer x');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.data)).toBe(true);
-  });
-
-  test('POST /api/orders', async () => {
-    const res = await request(app)
-      .post('/api/orders')
-      .set('Authorization', 'Bearer x')
-      .send({
-        client: '507f191e810c19729de860ea',
-        products: [{ product: '507f191e810c19729de860eb', quantity: 2 }],
-        status: 'pending',
-      });
-
-    expect(res.status).toBe(201);
-    expect(res.body.data.totalItems).toBe(2);
   });
 
   test('GET /api/dashboard', async () => {

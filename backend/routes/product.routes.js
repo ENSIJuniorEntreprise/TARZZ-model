@@ -1,5 +1,5 @@
 const express = require('express');
-const { body, param } = require('express-validator');
+const { body, param, query } = require('express-validator');
 const productController = require('../controllers/product.controller');
 const { protect } = require('../middlewares/auth.middleware');
 const { validate } = require('../middlewares/validate.middleware');
@@ -8,7 +8,11 @@ const { upload } = require('../middlewares/upload.middleware');
 const router = express.Router();
 router.use(protect);
 
-router.get('/', productController.getProducts);
+router.get('/',
+  [query('category').optional().isMongoId()],
+  validate,
+  productController.getProducts
+);
 router.post('/',
   upload.single('image'),
   [body('name').trim().notEmpty(), body('category').isMongoId()],
