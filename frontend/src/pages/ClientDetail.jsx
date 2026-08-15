@@ -10,46 +10,14 @@ import {
   checkStocks, decrementStocks, restoreStocks,
   DEFAULT_STOCK, LOW_STOCK_THRESHOLD,
 } from '../utils/stock';
+import { mergeCatalog, sortedChildren, flattenTree } from '../utils/catalog';
 
-// ── Products (build-time) ────────────────────────────────────────────────────
-const RAW_MODULES = import.meta.glob(
-  '../../assets/**/*.{png,jpg,jpeg,webp,PNG,JPG,JPEG}',
-  { eager: true }
-);
-const KY_CATS = new Set(['KY1', 'KY2']);
-
-function buildTree(modules) {
-  const root = { images: [], children: {} };
-  for (const [path, mod] of Object.entries(modules)) {
-    const parts = path.replace('../../assets/', '').split('/');
-    const filename = parts[parts.length - 1];
-    let node = root;
-    for (let i = 0; i < parts.length - 1; i++) {
-      if (!node.children[parts[i]]) node.children[parts[i]] = { images: [], children: {} };
-      node = node.children[parts[i]];
-    }
-    node.images.push({ id: path, filename: filename.replace(/\.[^.]+$/, ''), url: mod.default });
-  }
-  return root;
+function findImageUrl(flat, productName, productCategory) {
+  return flat.find(p => p.name === productName && p.category === productCategory)?.url || null;
 }
 
-const CATALOG_TREE = buildTree(RAW_MODULES);
-
-const ALL_FLAT = Object.entries(RAW_MODULES).map(([path, mod]) => {
-  const parts = path.replace('../../assets/', '').split('/');
-  const topCat = parts[0];
-  const name = KY_CATS.has(topCat) && parts.length >= 3
-    ? parts[parts.length - 2]
-    : parts[parts.length - 1].replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
-  return { id: path, name, category: parts.slice(0, -1).join(' / '), url: mod.default, stockId: idToKey(path) };
-});
-
-function findImageUrl(productName, productCategory) {
-  return ALL_FLAT.find(p => p.name === productName && p.category === productCategory)?.url || null;
-}
-
-function findStockId(productName, productCategory) {
-  return ALL_FLAT.find(p => p.name === productName && p.category === productCategory)?.stockId || null;
+function findStockId(flat, productName, productCategory) {
+  return flat.find(p => p.name === productName && p.category === productCategory)?.stockId || null;
 }
 
 // ── Constantes ────────────────────────────────────────────────────────────────
@@ -76,7 +44,7 @@ function todayLocal() {
 }
 
 // ── PDF ───────────────────────────────────────────────────────────────────────
-function buildPrintHTML(order, client) {
+function buildPrintHTML(order, client, flat) {
   const STATUS_LABELS = { en_commande: 'En commande', en_cours: 'En cours', livre: 'Livré' };
   const STATUS_BG     = { en_commande: '#FAE8E8', en_cours: '#FFF7ED', livre: '#EAF5EC' };
   const STATUS_COLOR  = { en_commande: '#B04040', en_cours: '#C2410C', livre: '#3D7A47' };
@@ -91,7 +59,7 @@ function buildPrintHTML(order, client) {
   const imgH = cols === 2 ? '220px' : '170px';
 
   const cards = items.map((item, i) => {
-    const rel = findImageUrl(item.productName, item.productCategory);
+    const rel = findImageUrl(flat, item.productName, item.productCategory);
     const src = rel ? origin + rel : '';
     const imgBlock = src
       ? `<img src="${src}" style="width:100%;height:${imgH};object-fit:cover;display:block">`
@@ -199,7 +167,7 @@ function ProductCard({ product, inCart, onToggle, stock }) {
 }
 
 // ── Modal Panier ──────────────────────────────────────────────────────────────
-function CartOrderModal({ onClose, onSave }) {
+function CartOrderModal({ tree, flat, onClose, onSave }) {
   const [search, setSearch]           = useState('');
   const [currentPath, setCurrentPath] = useState([]);
   // cart items: { id, name, category, url, quantity }
@@ -209,30 +177,32 @@ function CartOrderModal({ onClose, onSave }) {
   const [error, setError]             = useState('');
 
   const currentNode = useMemo(() => {
-    let node = CATALOG_TREE;
+    let node = { images: [], children: tree };
     for (const part of currentPath) { node = node.children?.[part]; if (!node) return { images: [], children: {} }; }
     return node;
-  }, [currentPath]);
+  }, [tree, currentPath]);
 
-  const subCats = useMemo(() => Object.keys(currentNode.children).sort(), [currentNode]);
+  const subCats = useMemo(() => sortedChildren(currentNode), [currentNode]);
 
   const stocks = useMemo(() => loadStocks(), []);
 
   const currentProducts = useMemo(() => {
-    const topCat = currentPath[0];
-    return currentNode.images.map(img => {
-      const name = KY_CATS.has(topCat) && currentPath.length >= 1
-        ? currentPath[currentPath.length - 1]
-        : img.filename.replace(/[_-]/g, ' ');
-      return { id: img.id, name, category: currentPath.join(' / '), url: img.url, stockId: idToKey(img.id) };
-    });
+    const catPath = currentPath.join(' / ');
+    return currentNode.images.map(img => ({
+      id: img.id,
+      name: img.displayName || img.name,
+      category: catPath,
+      url: img.url,
+      stockId: idToKey(img.id),
+      virtual: !!img.virtual,
+    }));
   }, [currentNode, currentPath]);
 
   const searchResults = useMemo(() => {
     if (!search.trim()) return [];
     const q = search.toLowerCase();
-    return ALL_FLAT.filter(p => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
-  }, [search]);
+    return flat.filter(p => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q));
+  }, [flat, search]);
 
   const isInCart = id => cart.some(p => p.id === id);
 
@@ -510,12 +480,12 @@ function EditOrderModal({ order, onClose, onSave }) {
 }
 
 // ── Modal Impression ──────────────────────────────────────────────────────────
-function PrintOrderModal({ order, client, onClose }) {
+function PrintOrderModal({ order, client, flat, onClose }) {
   const st    = getStatus(order.status);
   const items = order.items || [];
 
   const handlePrint = () => {
-    const html = buildPrintHTML(order, client);
+    const html = buildPrintHTML(order, client, flat);
     const win  = window.open('', '_blank', 'width=860,height=700');
     win.document.write(html);
     win.document.close();
@@ -550,7 +520,7 @@ function PrintOrderModal({ order, client, onClose }) {
           </p>
           <div className="flex flex-col gap-2">
             {items.map((item, i) => {
-              const imgUrl = findImageUrl(item.productName, item.productCategory);
+              const imgUrl = findImageUrl(flat, item.productName, item.productCategory);
               return (
                 <div key={i} className="flex items-center gap-3 rounded-xl p-2" style={{ backgroundColor: '#fdf5f7' }}>
                   {imgUrl
@@ -595,6 +565,9 @@ export default function ClientDetail() {
   const [editingOrder, setEditingOrder] = useState(null);
   const [printingOrder, setPrintingOrder] = useState(null);
 
+  const catalog = useMemo(() => mergeCatalog(), []);
+  const catalogFlat = useMemo(() => flattenTree(catalog.tree), [catalog]);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -629,7 +602,7 @@ export default function ClientDetail() {
     await ordersApi.remove(orderId);
     if (order?.items) {
       restoreStocks(order.items.map(item => ({
-        stockId: findStockId(item.productName, item.productCategory),
+        stockId: findStockId(catalogFlat, item.productName, item.productCategory),
         quantity: item.quantity || 1,
       })));
     }
@@ -735,9 +708,9 @@ export default function ClientDetail() {
         </div>
       )}
 
-      {showAddModal   && <CartOrderModal  onClose={() => setShowAddModal(false)}   onSave={handleAddOrder} />}
+      {showAddModal   && <CartOrderModal  tree={catalog.tree} flat={catalogFlat} onClose={() => setShowAddModal(false)}   onSave={handleAddOrder} />}
       {editingOrder   && <EditOrderModal  order={editingOrder}  onClose={() => setEditingOrder(null)}   onSave={handleUpdateOrder} />}
-      {printingOrder  && <PrintOrderModal order={printingOrder} client={client}    onClose={() => setPrintingOrder(null)} />}
+      {printingOrder  && <PrintOrderModal order={printingOrder} client={client} flat={catalogFlat}   onClose={() => setPrintingOrder(null)} />}
     </div>
   );
 }

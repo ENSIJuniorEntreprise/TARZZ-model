@@ -1,32 +1,18 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft, Truck, Phone, MapPin, Plus, Pencil, Trash2,
   X, Mail, Building2, Minus, PackageCheck,
 } from 'lucide-react';
 import { fournisseurs as fApi, fournisseurOrders as ordersApi } from '../api';
-import { restoreStocks, decrementStocks, idToKey } from '../utils/stock';
+import { restoreStocks, decrementStocks } from '../utils/stock';
+import { mergeCatalog, flattenTree } from '../utils/catalog';
 
 const font = { fontFamily: "'DM Sans', sans-serif" };
 const accent = '#5a7a9b';
 
-// ── Stock key lookup from filesystem catalog ───────────────────────────────────
-const RAW_MODULES = import.meta.glob(
-  '../../assets/**/*.{png,jpg,jpeg,webp,PNG,JPG,JPEG}',
-  { eager: true }
-);
-const KY_CATS = new Set(['KY1', 'KY2']);
-const CATALOG_FLAT = Object.keys(RAW_MODULES).map(path => {
-  const parts = path.replace('../../assets/', '').split('/');
-  const topCat = parts[0];
-  const name = KY_CATS.has(topCat) && parts.length >= 3
-    ? parts[parts.length - 2]
-    : parts[parts.length - 1].replace(/\.[^.]+$/, '').replace(/[_-]/g, ' ');
-  return { name, category: parts.slice(0, -1).join(' / '), stockId: idToKey(path) };
-});
-
-function findStockKey(productName, productCategory) {
-  return CATALOG_FLAT.find(p => p.name === productName && p.category === productCategory)?.stockId || null;
+function findStockKey(flat, productName, productCategory) {
+  return flat.find(p => p.name === productName && p.category === productCategory)?.stockId || null;
 }
 
 // ── Statuts ───────────────────────────────────────────────────────────────────
@@ -49,11 +35,11 @@ function todayLocal() {
 }
 
 // ── Ligne produit dans la modal de commande ───────────────────────────────────
-function ItemRow({ item, onChange, onRemove }) {
+function ItemRow({ item, flat, onChange, onRemove }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-gray-200 px-3 py-2.5">
       <div className="flex-1 min-w-0">
-        <select 
+        <select
           value={`${item.productCategory}|${item.productName}`}
           onChange={e => {
             const [cat, name] = e.target.value.split('|');
@@ -62,7 +48,7 @@ function ItemRow({ item, onChange, onRemove }) {
           className="w-full text-sm font-medium outline-none bg-transparent" style={{ color: '#1a1212' }}
         >
           <option value="|" disabled>Sélectionner un produit…</option>
-          {CATALOG_FLAT.map(p => (
+          {flat.map(p => (
             <option key={p.stockId} value={`${p.category}|${p.name}`}>
               {p.category ? `${p.category} / ` : ''}{p.name}
             </option>
@@ -86,7 +72,7 @@ function ItemRow({ item, onChange, onRemove }) {
 }
 
 // ── Modal Nouvelle commande ────────────────────────────────────────────────────
-function OrderModal({ onClose, onSave }) {
+function OrderModal({ flat, onClose, onSave }) {
   const [items,  setItems]  = useState([{ productName: '', productCategory: '', quantity: 1 }]);
   const [form,   setForm]   = useState({ status: 'en_attente', date: todayLocal(), remarque: '' });
   const [err,    setErr]    = useState('');
@@ -137,7 +123,7 @@ function OrderModal({ onClose, onSave }) {
             </div>
             <div className="flex flex-col gap-2">
               {items.map((item, i) => (
-                <ItemRow key={i} item={item} onChange={val => changeItem(i, val)} onRemove={() => removeItem(i)} />
+                <ItemRow key={i} item={item} flat={flat} onChange={val => changeItem(i, val)} onRemove={() => removeItem(i)} />
               ))}
             </div>
           </div>
@@ -224,9 +210,9 @@ function EditOrderModal({ order, onClose, onSave }) {
 }
 
 // ── Helpers stock ─────────────────────────────────────────────────────────────
-function toStockItems(order) {
+function toStockItems(order, flat) {
   return (order.items || []).map(item => ({
-    stockId: findStockKey(item.productName, item.productCategory),
+    stockId: findStockKey(flat, item.productName, item.productCategory),
     quantity: item.quantity || 1,
   }));
 }
@@ -242,6 +228,8 @@ export default function FournisseurDetail() {
   const [showAdd,       setShowAdd]       = useState(false);
   const [editingOrder,  setEditingOrder]  = useState(null);
 
+  const catalogFlat = useMemo(() => flattenTree(mergeCatalog().tree), []);
+
   useEffect(() => {
     const load = async () => {
       setLoading(true);
@@ -256,15 +244,15 @@ export default function FournisseurDetail() {
 
   const handleAddOrder = async data => {
     const order = await ordersApi.create(id, data);
-    if (data.status === 'recu') restoreStocks(toStockItems(order));
+    if (data.status === 'recu') restoreStocks(toStockItems(order, catalogFlat));
     setOrders(prev => [order, ...prev]);
   };
 
   const handleUpdateOrder = async (orderId, data) => {
     const prev = orders.find(o => o._id === orderId);
     const updated = await ordersApi.update(orderId, data);
-    if (data.status === 'recu' && prev?.status !== 'recu') restoreStocks(toStockItems(updated));
-    if (prev?.status === 'recu' && data.status !== 'recu') decrementStocks(toStockItems(prev));
+    if (data.status === 'recu' && prev?.status !== 'recu') restoreStocks(toStockItems(updated, catalogFlat));
+    if (prev?.status === 'recu' && data.status !== 'recu') decrementStocks(toStockItems(prev, catalogFlat));
     setOrders(o => o.map(x => x._id === orderId ? updated : x));
   };
 
@@ -272,7 +260,7 @@ export default function FournisseurDetail() {
     if (!window.confirm('Supprimer cette commande ?')) return;
     const order = orders.find(o => o._id === orderId);
     await ordersApi.remove(orderId);
-    if (order?.status === 'recu') decrementStocks(toStockItems(order));
+    if (order?.status === 'recu') decrementStocks(toStockItems(order, catalogFlat));
     setOrders(o => o.filter(x => x._id !== orderId));
   };
 
@@ -382,7 +370,7 @@ export default function FournisseurDetail() {
         </div>
       )}
 
-      {showAdd      && <OrderModal onClose={() => setShowAdd(false)} onSave={handleAddOrder} />}
+      {showAdd      && <OrderModal flat={catalogFlat} onClose={() => setShowAdd(false)} onSave={handleAddOrder} />}
       {editingOrder && <EditOrderModal order={editingOrder} onClose={() => setEditingOrder(null)} onSave={handleUpdateOrder} />}
     </div>
   );

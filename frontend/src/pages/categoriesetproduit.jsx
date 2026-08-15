@@ -5,96 +5,11 @@ import {
   idToKey, initStocks, getByKey,
   DEFAULT_STOCK, LOW_STOCK_THRESHOLD,
 } from "../utils/stock";
-
-// ── Static asset tree ─────────────────────────────────────────────────────────
-const rawModules = import.meta.glob(
-  "../../assets/**/*.{png,jpg,jpeg,webp,PNG,JPG,JPEG,WEBP,gif,GIF}",
-  { eager: true }
-);
-
-const SKIP = new Set(["desktop.ini", "thumbs.db", ".ds_store"]);
-const KY_CATS = new Set(["KY1", "KY2"]);
-
-function buildTree(modules) {
-  const tree = {};
-  Object.entries(modules).forEach(([path, mod]) => {
-    const rel = path.replace(/^.*\/assets\//, "");
-    const parts = rel.split("/");
-    if (parts.length < 2) return;
-    const filename = parts[parts.length - 1];
-    if (SKIP.has(filename.toLowerCase())) return;
-    const name = filename.replace(/\.[^.]+$/, "");
-    const folders = parts.slice(0, -1);
-    const cat = folders[0];
-    if (!tree[cat]) tree[cat] = { images: [], children: {} };
-    let node = tree[cat];
-    for (let i = 1; i < folders.length; i++) {
-      const sub = folders[i];
-      if (!node.children[sub]) node.children[sub] = { images: [], children: {} };
-      node = node.children[sub];
-    }
-    node.images.push({ id: path, name, url: mod.default, displayName: name });
-  });
-
-  function applyKyNames(node, pathParts) {
-    const subPath = pathParts.slice(1);
-    const base = subPath.length > 0 ? subPath.join(" · ") : pathParts[0];
-    node.images.forEach((img, i) => {
-      img.displayName = node.images.length > 1 ? `${base} (${i + 1})` : base;
-    });
-    Object.entries(node.children).forEach(([child, childNode]) =>
-      applyKyNames(childNode, [...pathParts, child])
-    );
-  }
-
-  function sortNode(n) {
-    n.images.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-    Object.values(n.children).forEach(sortNode);
-  }
-  Object.values(tree).forEach(sortNode);
-
-  KY_CATS.forEach(cat => {
-    if (tree[cat]) applyKyNames(tree[cat], [cat]);
-  });
-
-  return tree;
-}
-
-const STATIC_TREE = buildTree(rawModules);
-
-function cloneNode(n) {
-  return {
-    images: [...n.images],
-    children: Object.fromEntries(
-      Object.entries(n.children).map(([k, v]) => [k, cloneNode(v)])
-    ),
-  };
-}
-
-function getNode(path, tree) {
-  if (!path?.length) return null;
-  let node = tree[path[0]];
-  for (let i = 1; i < path.length; i++) {
-    if (!node) return null;
-    node = node.children[path[i]];
-  }
-  return node;
-}
-
-function sortedChildren(node) {
-  return Object.keys(node.children).sort((a, b) =>
-    a.localeCompare(b, undefined, { numeric: true })
-  );
-}
-
-// ── Virtual data (localStorage) ───────────────────────────────────────────────
-const VCAT_KEY  = "tarzz_virtual_cats_v1";
-const VPROD_KEY = "tarzz_virtual_prods_v1";
-
-const loadVCats  = () => { try { return JSON.parse(localStorage.getItem(VCAT_KEY)  || "[]"); } catch { return []; } };
-const loadVProds = () => { try { return JSON.parse(localStorage.getItem(VPROD_KEY) || "[]"); } catch { return []; } };
-const saveVCats  = c => localStorage.setItem(VCAT_KEY,  JSON.stringify(c));
-const saveVProds = p => localStorage.setItem(VPROD_KEY, JSON.stringify(p));
+import {
+  STATIC_TREE, STATIC_IDS, getNode, sortedChildren, mergeCatalog,
+  loadVirtualCategories as loadVCats, saveVirtualCategories as saveVCats,
+  loadVirtualProducts as loadVProds, saveVirtualProducts as saveVProds,
+} from "../utils/catalog";
 
 async function compressImage(file, maxDim = 900, quality = 0.8) {
   return new Promise(resolve => {
@@ -363,32 +278,15 @@ export default function ProduitsCategories() {
   }));
 
   const { mergedTree, allCategories } = useMemo(() => {
-    const tree = Object.fromEntries(
-      Object.entries(STATIC_TREE).map(([k, v]) => [k, cloneNode(v)])
-    );
-    vData.cats.forEach(cat => {
-      if (!tree[cat]) tree[cat] = { images: [], children: {} };
-    });
-    vData.prods.forEach(prod => {
-      const [top, ...rest] = prod.path;
-      if (!tree[top]) tree[top] = { images: [], children: {} };
-      let node = tree[top];
-      for (const sub of rest) {
-        if (!node.children[sub]) node.children[sub] = { images: [], children: {} };
-        node = node.children[sub];
-      }
-      node.images.push({ id: prod.id, name: prod.name, displayName: prod.name, url: prod.dataUrl, virtual: true });
-    });
-    const cats = Object.keys(tree).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
+    const { tree, allCategories: cats } = mergeCatalog(vData.cats, vData.prods);
     return { mergedTree: tree, allCategories: cats };
   }, [vData]);
 
   const [activePath, setActivePath]   = useState(STATIC_FIRST ? [STATIC_FIRST] : null);
   const [expanded, setExpanded]       = useState(() => new Set(STATIC_FIRST ? [STATIC_FIRST] : []));
   const [stocks, setStocks]           = useState(() => {
-    const staticIds  = Object.keys(rawModules);
     const virtualIds = loadVProds().map(p => p.id);
-    return initStocks([...staticIds, ...virtualIds]);
+    return initStocks([...STATIC_IDS, ...virtualIds]);
   });
   const [editingKey, setEditingKey]   = useState(null);
   const [search, setSearch]           = useState("");
