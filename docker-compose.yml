@@ -1,0 +1,41 @@
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo_data:/data/db
+    ports:
+      - "27017:27017"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    environment:
+      NODE_ENV: development
+      PORT: 3001
+      MONGO_URI: mongodb://mongo:27017/tarzz_bijouterie
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-.env}
+      JWT_EXPIRES_IN: 7d
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@hajtajeb.com}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-in-.env}
+      FRONTEND_ORIGIN: http://localhost:8080
+      RATE_LIMIT_WINDOW_MS: 900000
+      RATE_LIMIT_MAX: 200
+    volumes:
+      - backend_uploads:/app/uploads
+    ports:
+      - "3001:3001"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+
+volumes:
+  mongo_data:
+  backend_uploads:

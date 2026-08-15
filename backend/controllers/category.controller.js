@@ -2,10 +2,15 @@ const mongoose = require('mongoose');
 const catchAsync = require('../utils/catchAsync');
 const Category = require('../models/Category');
 const ApiError = require('../utils/ApiError');
+const { parsePagination, buildMeta } = require('../utils/query');
 
 const getCategories = catchAsync(async (req, res) => {
-  const cats = await Category.find({}).populate('parent', 'name').sort({ name: 1 });
-  res.json({ success: true, data: cats });
+  const { page, limit, skip } = parsePagination(req.query);
+  const [cats, total] = await Promise.all([
+    Category.find({}).populate('parent', 'name').sort({ name: 1 }).skip(skip).limit(limit),
+    Category.countDocuments({}),
+  ]);
+  res.json({ success: true, data: cats, meta: buildMeta(total, page, limit) });
 });
 
 const createCategory = catchAsync(async (req, res) => {

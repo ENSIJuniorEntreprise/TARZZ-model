@@ -66,8 +66,9 @@ function AddCategoryModal({ onClose, onSave }) {
         </div>
         <div className="px-5 py-4 flex flex-col gap-3">
           <div>
-            <label className="block text-xs font-semibold italic mb-1 text-[#5e4d4d]">Nom *</label>
+            <label htmlFor="new-category-name" className="block text-xs font-semibold italic mb-1 text-[#5e4d4d]">Nom *</label>
             <input
+              id="new-category-name"
               autoFocus
               value={name}
               onChange={e => { setName(e.target.value); setError(""); }}
@@ -147,8 +148,8 @@ function AddProductModal({ tree, allCategories, onClose, onSave }) {
           {error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
           <div>
-            <label className="block text-xs font-semibold italic mb-1 text-[#5e4d4d]">Catégorie *</label>
-            <select value={cat1} onChange={e => setCat1(e.target.value)}
+            <label htmlFor="new-product-cat1" className="block text-xs font-semibold italic mb-1 text-[#5e4d4d]">Catégorie *</label>
+            <select id="new-product-cat1" value={cat1} onChange={e => setCat1(e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none bg-white focus:ring-1 focus:ring-[#9E8A9C]">
               <option value="">— Choisir —</option>
               {allCategories.map(c => <option key={c} value={c}>{c}</option>)}
@@ -157,8 +158,8 @@ function AddProductModal({ tree, allCategories, onClose, onSave }) {
 
           {cat1 && subs2.length > 0 && (
             <div>
-              <label className="block text-xs font-semibold italic mb-1 text-[#5e4d4d]">Sous-catégorie</label>
-              <select value={cat2} onChange={e => setCat2(e.target.value)}
+              <label htmlFor="new-product-cat2" className="block text-xs font-semibold italic mb-1 text-[#5e4d4d]">Sous-catégorie</label>
+              <select id="new-product-cat2" value={cat2} onChange={e => setCat2(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none bg-white focus:ring-1 focus:ring-[#9E8A9C]">
                 <option value="">— Directement dans {cat1} —</option>
                 {subs2.map(c => <option key={c} value={c}>{c}</option>)}
@@ -168,8 +169,8 @@ function AddProductModal({ tree, allCategories, onClose, onSave }) {
 
           {cat2 && subs3.length > 0 && (
             <div>
-              <label className="block text-xs font-semibold italic mb-1 text-[#5e4d4d]">Sous-sous-catégorie</label>
-              <select value={cat3} onChange={e => setCat3(e.target.value)}
+              <label htmlFor="new-product-cat3" className="block text-xs font-semibold italic mb-1 text-[#5e4d4d]">Sous-sous-catégorie</label>
+              <select id="new-product-cat3" value={cat3} onChange={e => setCat3(e.target.value)}
                 className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none bg-white focus:ring-1 focus:ring-[#9E8A9C]">
                 <option value="">— Directement dans {cat2} —</option>
                 {subs3.map(c => <option key={c} value={c}>{c}</option>)}
@@ -178,8 +179,9 @@ function AddProductModal({ tree, allCategories, onClose, onSave }) {
           )}
 
           <div>
-            <label className="block text-xs font-semibold italic mb-1 text-[#5e4d4d]">Nom du produit *</label>
+            <label htmlFor="new-product-name" className="block text-xs font-semibold italic mb-1 text-[#5e4d4d]">Nom du produit *</label>
             <input
+              id="new-product-name"
               value={name}
               onChange={e => { setName(e.target.value); setError(""); }}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-1 focus:ring-[#9E8A9C]"
@@ -593,6 +595,12 @@ export default function ProduitsCategories() {
                         style={{ backgroundColor: st.bg, color: st.color }}
                         onClick={() => setEditingKey(eKey)}
                         title="Cliquer pour modifier le stock"
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Stock de ${p.displayName} : ${stock}, ${st.label}. Appuyer pour modifier.`}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditingKey(eKey); }
+                        }}
                       >
                         {editingKey === eKey ? (
                           <input

@@ -3,12 +3,17 @@ const catchAsync = require('../utils/catchAsync');
 const Product = require('../models/Product');
 const Category = require('../models/Category');
 const ApiError = require('../utils/ApiError');
+const { parsePagination, buildMeta } = require('../utils/query');
 
 const getProducts = catchAsync(async (req, res) => {
+  const { page, limit, skip } = parsePagination(req.query);
   const filter = {};
   if (req.query.category) filter.category = req.query.category;
-  const products = await Product.find(filter).populate('category', 'name parent').sort({ name: 1 });
-  res.json({ success: true, data: products });
+  const [products, total] = await Promise.all([
+    Product.find(filter).populate('category', 'name parent').sort({ name: 1 }).skip(skip).limit(limit),
+    Product.countDocuments(filter),
+  ]);
+  res.json({ success: true, data: products, meta: buildMeta(total, page, limit) });
 });
 
 const createProduct = catchAsync(async (req, res) => {

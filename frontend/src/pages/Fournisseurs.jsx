@@ -53,8 +53,8 @@ function FournisseurModal({ onClose, onSave }) {
           <div className="grid grid-cols-2 gap-4">
             {[['nom', 'Nom *'], ['prenom', 'Prénom *']].map(([k, lbl]) => (
               <div key={k}>
-                <label className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>{lbl}</label>
-                <input value={form[k]} onChange={e => set(k, e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
+                <label htmlFor={`fournisseur-${k}`} className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>{lbl}</label>
+                <input id={`fournisseur-${k}`} value={form[k]} onChange={e => set(k, e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
                   className={`w-full border rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-1 focus:ring-[#9E8A9C] ${errors[k] ? 'border-red-400' : 'border-gray-200'}`} />
                 {errors[k] && <p className="text-xs text-red-500 mt-0.5">{errors[k]}</p>}
               </div>
@@ -62,15 +62,15 @@ function FournisseurModal({ onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Société</label>
-            <input value={form.societe} onChange={e => set('societe', e.target.value)}
+            <label htmlFor="fournisseur-societe" className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Société</label>
+            <input id="fournisseur-societe" value={form.societe} onChange={e => set('societe', e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-1 focus:ring-[#9E8A9C]" />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Téléphone</label>
+            <label htmlFor="fournisseur-tel" className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Téléphone</label>
             <div className="flex gap-2">
-              <select value={form.prefix} onChange={e => set('prefix', e.target.value)}
+              <select aria-label="Indicatif téléphonique" value={form.prefix} onChange={e => set('prefix', e.target.value)}
                 className="border border-gray-200 rounded-xl px-2 py-2.5 text-sm outline-none bg-white focus:ring-1 focus:ring-[#9E8A9C]">
                 <option value="+212">🇲🇦 +212</option>
                 <option value="+213">🇩🇿 +213</option>
@@ -78,20 +78,20 @@ function FournisseurModal({ onClose, onSave }) {
                 <option value="+33">🇫🇷 +33</option>
                 <option value="+1">🇺🇸 +1</option>
               </select>
-              <input type="tel" value={form.tel} onChange={e => set('tel', e.target.value)}
+              <input id="fournisseur-tel" type="tel" value={form.tel} onChange={e => set('tel', e.target.value)}
                 className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-1 focus:ring-[#9E8A9C]" />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Email</label>
-            <input type="email" value={form.email} onChange={e => set('email', e.target.value)}
+            <label htmlFor="fournisseur-email" className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Email</label>
+            <input id="fournisseur-email" type="email" value={form.email} onChange={e => set('email', e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-1 focus:ring-[#9E8A9C]" />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Adresse</label>
-            <input value={form.adresse} onChange={e => set('adresse', e.target.value)}
+            <label htmlFor="fournisseur-adresse" className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Adresse</label>
+            <input id="fournisseur-adresse" value={form.adresse} onChange={e => set('adresse', e.target.value)}
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:ring-1 focus:ring-[#9E8A9C]" />
           </div>
         </div>

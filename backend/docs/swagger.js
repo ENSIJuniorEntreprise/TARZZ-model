@@ -14,6 +14,7 @@ const options = {
         description: 'Local API server',
       },
     ],
+    security: [{ bearerAuth: [] }],
     components: {
       securitySchemes: {
         bearerAuth: {
@@ -28,7 +29,7 @@ const options = {
           required: ['email', 'password'],
           properties: {
             email: { type: 'string', example: 'admin@hajtajeb.com' },
-            password: { type: 'string', example: 'admin123' },
+            password: { type: 'string', example: '••••••••' },
           },
         },
         Category: {
@@ -36,6 +37,7 @@ const options = {
           properties: {
             _id: { type: 'string' },
             name: { type: 'string' },
+            parent: { type: 'string', nullable: true, description: 'ObjectId of the parent category' },
           },
         },
         Product: {
@@ -43,10 +45,9 @@ const options = {
           properties: {
             _id: { type: 'string' },
             name: { type: 'string' },
-            reference: { type: 'string' },
-            purchasePrice: { type: 'number' },
-            sellingPrice: { type: 'number' },
-            stockQuantity: { type: 'number' },
+            category: { type: 'string', description: 'ObjectId of the category' },
+            imageUrl: { type: 'string', nullable: true },
+            stock: { type: 'number', default: 20 },
           },
         },
         Client: {
@@ -59,10 +60,60 @@ const options = {
             address: { type: 'string' },
           },
         },
+        Fournisseur: {
+          type: 'object',
+          properties: {
+            _id: { type: 'string' },
+            nom: { type: 'string' },
+            prenom: { type: 'string' },
+            societe: { type: 'string' },
+            phone: { type: 'string' },
+            email: { type: 'string' },
+            adresse: { type: 'string' },
+          },
+        },
+        ClientOrderItem: {
+          type: 'object',
+          properties: {
+            productName: { type: 'string' },
+            productCategory: { type: 'string' },
+            quantity: { type: 'number', default: 1 },
+          },
+        },
+        ClientOrder: {
+          type: 'object',
+          properties: {
+            _id: { type: 'string' },
+            client: { type: 'string' },
+            items: { type: 'array', items: { $ref: '#/components/schemas/ClientOrderItem' } },
+            date: { type: 'string', format: 'date-time' },
+            status: { type: 'string', enum: ['en_commande', 'en_cours', 'livre'] },
+            remarque: { type: 'string' },
+          },
+        },
+        FournisseurOrder: {
+          type: 'object',
+          properties: {
+            _id: { type: 'string' },
+            fournisseur: { type: 'string' },
+            items: { type: 'array', items: { $ref: '#/components/schemas/ClientOrderItem' } },
+            date: { type: 'string', format: 'date-time' },
+            status: { type: 'string', enum: ['en_attente', 'confirme', 'recu'] },
+            remarque: { type: 'string' },
+          },
+        },
+        ApiError: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            message: { type: 'string' },
+            details: { type: 'object', nullable: true },
+          },
+        },
       },
     },
   },
-  apis: [],
+  apis: ['./routes/*.js'],
 };
 
 const swaggerSpec = swaggerJsdoc(options);

@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
+const mongoose = require('mongoose');
 const rateLimit = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 const path = require('path');
@@ -33,8 +34,16 @@ const limiter = rateLimit({
 app.use(limiter);
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+const MONGO_STATES = ['disconnected', 'connected', 'connecting', 'disconnecting'];
+
 app.get('/health', (_req, res) => {
-  res.status(200).json({ success: true, status: 'ok' });
+  const dbState = MONGO_STATES[mongoose.connection.readyState] || 'unknown';
+  const dbOk = mongoose.connection.readyState === 1;
+  res.status(dbOk ? 200 : 503).json({
+    success: dbOk,
+    status: dbOk ? 'ok' : 'degraded',
+    db: dbState,
+  });
 });
 
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));

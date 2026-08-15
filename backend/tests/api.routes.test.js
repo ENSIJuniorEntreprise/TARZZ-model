@@ -42,6 +42,7 @@ describe('Health', () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+    expect(res.body.db).toBe('connected');
   });
 });
 
@@ -96,6 +97,13 @@ describe('Categories', () => {
     expect(res.body.data.some(c => c._id === categoryId)).toBe(true);
   });
 
+  test('GET /api/categories is paginated', async () => {
+    const res = await auth(request(app).get('/api/categories?limit=1'));
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeLessThanOrEqual(1);
+    expect(res.body.meta).toMatchObject({ limit: 1, page: 1 });
+  });
+
   test('POST /api/categories rejects an empty name', async () => {
     const res = await auth(request(app).post('/api/categories')).send({ name: '' });
     expect(res.status).toBe(400);
@@ -117,6 +125,14 @@ describe('Products', () => {
     expect(res.body.data.name).toBe('Collier Or');
     expect(res.body.data.stock).toBe(5);
     productId = res.body.data._id;
+  });
+
+  test('GET /api/products is paginated', async () => {
+    const res = await auth(request(app).get('/api/products?limit=1'));
+    expect(res.status).toBe(200);
+    expect(res.body.data.length).toBeLessThanOrEqual(1);
+    expect(res.body.meta).toMatchObject({ limit: 1, page: 1 });
+    expect(res.body.meta.total).toBeGreaterThanOrEqual(1);
   });
 
   test('GET /api/products lists products', async () => {

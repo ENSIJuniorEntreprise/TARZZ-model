@@ -2,6 +2,7 @@ const app = require('./app');
 const env = require('./config/env');
 const { connectDatabase } = require('./config/db');
 const { seedDefaultAdmin } = require('./services/auth.service');
+const logger = require('./utils/logger');
 
 const startServer = async () => {
   try {
@@ -9,11 +10,11 @@ const startServer = async () => {
     await seedDefaultAdmin();
 
     app.listen(env.port, () => {
-      console.log(`Backend running on http://localhost:${env.port}`);
-      console.log(`Admin account: ${env.adminEmail}`);
+      logger.info(`Backend running on http://localhost:${env.port}`);
+      logger.info(`Admin account: ${env.adminEmail}`);
     });
   } catch (error) {
-    console.error('Server startup failed:', error);
+    logger.error({ err: error }, 'Server startup failed');
     process.exit(1);
   }
 };

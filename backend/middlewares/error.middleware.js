@@ -1,10 +1,11 @@
 const ApiError = require('../utils/ApiError');
+const logger = require('../utils/logger');
 
 const notFound = (req, _res, next) => {
   next(new ApiError(404, `Route not found: ${req.originalUrl}`));
 };
 
-const errorHandler = (err, _req, res, _next) => {
+const errorHandler = (err, req, res, _next) => {
   const statusCode = err.statusCode || 500;
 
   if (err.name === 'CastError') {
@@ -28,6 +29,10 @@ const errorHandler = (err, _req, res, _next) => {
       message: 'Validation error',
       details: Object.values(err.errors).map(e => e.message),
     });
+  }
+
+  if (statusCode >= 500) {
+    logger.error({ err, statusCode, path: req.originalUrl }, 'Unhandled server error');
   }
 
   return res.status(statusCode).json({

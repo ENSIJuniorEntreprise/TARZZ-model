@@ -73,8 +73,9 @@ function AddClientModal({ onClose, onSave }) {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Nom *</label>
+              <label htmlFor="client-nom" className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Nom *</label>
               <input
+                id="client-nom"
                 value={form.nom}
                 onChange={e => set('nom', e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && submit()}
@@ -83,8 +84,9 @@ function AddClientModal({ onClose, onSave }) {
               {errors.nom && <p className="text-xs text-red-500 mt-0.5">{errors.nom}</p>}
             </div>
             <div>
-              <label className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Prénom *</label>
+              <label htmlFor="client-prenom" className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Prénom *</label>
               <input
+                id="client-prenom"
                 value={form.prenom}
                 onChange={e => set('prenom', e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && submit()}
@@ -95,9 +97,10 @@ function AddClientModal({ onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Numéro Téléphonique *</label>
+            <label htmlFor="client-tel" className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Numéro Téléphonique *</label>
             <div className="flex gap-2">
               <select
+                aria-label="Indicatif téléphonique"
                 value={form.prefix}
                 onChange={e => set('prefix', e.target.value)}
                 className="border border-gray-200 rounded-xl px-2 py-2.5 text-sm outline-none bg-white focus:ring-1 focus:ring-[#9E8A9C]"
@@ -110,6 +113,7 @@ function AddClientModal({ onClose, onSave }) {
                 <option value="+44">🇬🇧 +44</option>
               </select>
               <input
+                id="client-tel"
                 type="tel"
                 value={form.tel}
                 onChange={e => set('tel', e.target.value)}
@@ -121,8 +125,9 @@ function AddClientModal({ onClose, onSave }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Adresse *</label>
+            <label htmlFor="client-adresse" className="block text-xs font-semibold italic mb-1" style={{ color: '#5e4d4d' }}>Adresse *</label>
             <input
+              id="client-adresse"
               value={form.adresse}
               onChange={e => set('adresse', e.target.value)}
               onKeyDown={e => e.key === 'Enter' && submit()}
