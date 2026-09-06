@@ -12,6 +12,35 @@ import {
 } from '../utils/stock';
 import { mergeCatalog, sortedChildren, flattenTree } from '../utils/catalog';
 
+const WHATSAPP_NUMBER = '21654622622';
+
+function WhatsAppIcon({ size = 14, style }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" style={style}>
+      <path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2.05 22l5.25-1.38a9.9 9.9 0 0 0 4.74 1.2h.01c5.46 0 9.9-4.45 9.9-9.91 0-2.65-1.03-5.13-2.9-7-1.87-1.87-4.35-2.9-7-2.9zm0 18.14h-.01a8.2 8.2 0 0 1-4.19-1.15l-.3-.18-3.11.82.83-3.04-.2-.31a8.2 8.2 0 0 1-1.26-4.38c0-4.54 3.7-8.24 8.25-8.24 2.2 0 4.27.86 5.83 2.42a8.18 8.18 0 0 1 2.42 5.83c0 4.55-3.7 8.24-8.26 8.24zm4.52-6.17c-.25-.12-1.47-.72-1.7-.81-.23-.08-.4-.12-.56.13-.17.25-.64.81-.79.97-.14.17-.29.19-.54.06-.25-.12-1.04-.38-1.98-1.22-.73-.65-1.23-1.46-1.37-1.7-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.12-.15.16-.25.25-.42.08-.17.04-.31-.02-.43-.06-.12-.56-1.35-.77-1.85-.2-.48-.41-.42-.56-.43h-.48c-.17 0-.43.06-.66.31-.23.25-.86.84-.86 2.05s.88 2.38 1 2.54c.12.17 1.74 2.65 4.22 3.72.59.25 1.05.4 1.41.52.59.19 1.13.16 1.55.1.47-.07 1.47-.6 1.68-1.18.21-.58.21-1.08.14-1.18-.06-.11-.23-.17-.48-.29z"/>
+    </svg>
+  );
+}
+
+function buildWhatsAppMessage(order, client) {
+  const STATUS_LABELS = { en_commande: 'En commande', en_cours: 'En cours', livre: 'Livré' };
+  const dt = new Date(order.date);
+  const p  = n => String(n).padStart(2, '0');
+  const dateStr = `${p(dt.getDate())}/${p(dt.getMonth()+1)}/${dt.getFullYear()}`;
+  const items = order.items || [];
+  const lines = items.map(it => `- ${it.productName}${(it.quantity||1) > 1 ? ` x${it.quantity}` : ''}`);
+  const parts = [
+    `*Commande — ${client.prenom} ${client.nom}*`,
+    `Date : ${dateStr}`,
+    `État : ${STATUS_LABELS[order.status] || order.status}`,
+    '',
+    `Produits (${items.length}) :`,
+    ...lines,
+  ];
+  if (order.remarque) parts.push('', `Remarque : ${order.remarque}`);
+  return parts.join('\n');
+}
+
 function findImageUrl(flat, productName, productCategory) {
   return flat.find(p => p.name === productName && p.category === productCategory)?.url || null;
 }
@@ -105,8 +134,8 @@ function buildPrintHTML(order, client, flat) {
 </head>
 <body>
   <div class="header">
-    <div class="brand">HAJTAJEB<span class="accent"> Model</span></div>
-    <div class="sub">Tapis · Bijoux · Modèles</div>
+    <div class="brand">HAJTAYEB<span class="accent"> Model</span></div>
+    <div class="sub">Wax.resin · Bijoux · Modèles</div>
     <div class="stripe"></div>
   </div>
   <hr>
@@ -492,6 +521,11 @@ function PrintOrderModal({ order, client, flat, onClose }) {
     setTimeout(() => { win.focus(); win.print(); }, 700);
   };
 
+  const handleSendWhatsApp = () => {
+    const text = buildWhatsAppMessage(order, client);
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()} style={{ fontFamily: "'DM Sans', sans-serif" }}>
@@ -542,8 +576,11 @@ function PrintOrderModal({ order, client, flat, onClose }) {
           </div>
         </div>
 
-        <div className="flex gap-3 justify-end px-6 py-4 border-t border-gray-100">
+        <div className="flex gap-3 justify-end px-6 py-4 border-t border-gray-100 flex-wrap">
           <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold hover:bg-gray-50 transition" style={{ color: '#5e4d4d' }}>Fermer</button>
+          <button onClick={handleSendWhatsApp} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold hover:opacity-90 transition" style={{ background: '#25D366' }}>
+            <WhatsAppIcon size={14} /> WhatsApp
+          </button>
           <button onClick={handlePrint} className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-white text-sm font-bold hover:opacity-90 transition" style={{ background: 'linear-gradient(135deg,#9b6b7a,#b07585)' }}>
             <Printer size={14} /> Imprimer
           </button>
@@ -689,6 +726,13 @@ export default function ClientDetail() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1.5 justify-end">
+                        <button
+                          onClick={() => window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(buildWhatsAppMessage(order, client))}`, '_blank')}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#e9fbef] transition"
+                          title="Envoyer via WhatsApp"
+                        >
+                          <WhatsAppIcon size={13} style={{ color: '#25D366' }} />
+                        </button>
                         <button onClick={() => setPrintingOrder(order)} className="w-7 h-7 flex items-center justify-center rounded-lg hover:bg-[#f0e8f4] transition" title="Imprimer">
                           <Printer size={13} style={{ color: '#9b6b7a' }} />
                         </button>

@@ -29,14 +29,14 @@ const Sidebar = () => {
           className="font-serif-custom font-bold leading-tight"
           style={{ fontSize: "22px", color: "#1a1212", letterSpacing: "0.02em" }}
         >
-          HAJTAJEB
+          HAJTAYEB
           <span style={{ color: "#9b6b7a" }}> Model</span>
         </div>
         <div
           className="font-sans-custom mt-1.5 font-medium"
           style={{ fontSize: "11px", color: "#7a6060", letterSpacing: "0.12em" }}
         >
-          Tapis · Bijoux · Modèles
+          Wax.resin · Bijoux · Modèles
         </div>
         <div
           className="mt-4 rounded-full"
