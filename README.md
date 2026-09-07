@@ -1,4 +1,4 @@
-# TARZZ Model — Hajtajeb
+# TARZZ Model — Hajtayeb
 
 Back-office interne mono-utilisateur pour la gestion d'une bijouterie : catalogue produits, clients, fournisseurs, commandes et tableau de bord. Pas de boutique publique — un seul compte admin gère l'ensemble.
 

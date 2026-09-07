@@ -6,7 +6,7 @@ let mongod;
 let app;
 let adminToken;
 
-const ADMIN_EMAIL = 'admin@hajtajeb.com';
+const ADMIN_EMAIL = 'admin@hajtayeb.com';
 const ADMIN_PASSWORD = 'Test-Password-1234';
 
 beforeAll(async () => {

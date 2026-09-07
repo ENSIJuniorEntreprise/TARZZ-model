@@ -28,7 +28,7 @@ const options = {
           type: 'object',
           required: ['email', 'password'],
           properties: {
-            email: { type: 'string', example: 'admin@hajtajeb.com' },
+            email: { type: 'string', example: 'admin@hajtayeb.com' },
             password: { type: 'string', example: '••••••••' },
           },
         },

@@ -707,15 +707,25 @@ export default function ClientDetail() {
                 const totalQty = items.reduce((s, it) => s + (it.quantity || 1), 0);
                 const firstName = items[0]?.productName || '—';
                 const rest = items.length > 1 ? ` +${items.length - 1}` : '';
+                const thumbUrl = items[0] ? findImageUrl(catalogFlat, items[0].productName, items[0].productCategory) : null;
                 return (
                   <tr key={orderId} style={{ borderBottom: '1px solid #f5f0ee', backgroundColor: i % 2 === 0 ? '#fff' : '#fdfcfc' }}>
                     <td className="px-4 py-3">
-                      <p className="font-semibold truncate max-w-[200px]" style={{ color: '#1a1212' }}>
-                        {firstName}<span style={{ color: '#9b6b7a', fontWeight: 700 }}>{rest}</span>
-                      </p>
-                      <p className="text-xs mt-0.5" style={{ color: '#9a8585' }}>
-                        {items.length} produit{items.length > 1 ? 's' : ''} · {totalQty} unité{totalQty > 1 ? 's' : ''}
-                      </p>
+                      <div className="flex items-center gap-3">
+                        {thumbUrl ? (
+                          <img src={thumbUrl} alt={firstName} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" style={{ border: '1px solid #f0ebe8' }} />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg flex-shrink-0" style={{ background: '#f4f4f5' }} />
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate max-w-[200px]" style={{ color: '#1a1212' }}>
+                            {firstName}<span style={{ color: '#9b6b7a', fontWeight: 700 }}>{rest}</span>
+                          </p>
+                          <p className="text-xs mt-0.5" style={{ color: '#9a8585' }}>
+                            {items.length} produit{items.length > 1 ? 's' : ''} · {totalQty} unité{totalQty > 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap" style={{ color: '#5e4d4d' }}>{formatDate(order.date)}</td>
                     <td className="px-4 py-3">

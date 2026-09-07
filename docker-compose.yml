@@ -18,7 +18,7 @@ services:
       MONGO_URI: mongodb://mongo:27017/tarzz_bijouterie
       JWT_SECRET: ${JWT_SECRET:-change-me-in-.env}
       JWT_EXPIRES_IN: 7d
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@hajtajeb.com}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@hajtayeb.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-change-me-in-.env}
       FRONTEND_ORIGIN: http://localhost:8080
       RATE_LIMIT_WINDOW_MS: 900000
