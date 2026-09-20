@@ -13,6 +13,47 @@ const getClientOrders = catchAsync(async (req, res) => {
   res.json({ success: true, data: orders });
 });
 
+// Cross-client lookup, used by the "commande existante" picker (Catégorie & Stock
+// page) to find in-progress CLIENT orders without knowing the client id up front.
+const listClientOrders = catchAsync(async (req, res) => {
+  const { status } = req.query;
+  const filter = {};
+  if (status) {
+    if (!VALID_STATUSES.includes(status)) throw new ApiError(400, 'Invalid status');
+    filter.status = status;
+  }
+  const orders = await ClientOrder.find(filter)
+    .populate('client', 'firstName lastName phone address')
+    .sort({ updatedAt: -1 })
+    .limit(200);
+  res.json({ success: true, data: orders });
+});
+
+const addClientOrderItem = catchAsync(async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.id))
+    throw new ApiError(400, 'Invalid order id');
+
+  const { productName, productCategory, quantity } = req.body;
+  if (!productName || !String(productName).trim())
+    throw new ApiError(400, 'productName is required');
+
+  const order = await ClientOrder.findById(req.params.id);
+  if (!order) throw new ApiError(404, 'Order not found');
+
+  const name = String(productName).trim();
+  const category = String(productCategory || '').trim();
+  const qty = Math.max(1, parseInt(quantity) || 1);
+
+  const existingItem = order.items.find(
+    i => i.productName === name && i.productCategory === category
+  );
+  if (existingItem) existingItem.quantity += qty;
+  else order.items.push({ productName: name, productCategory: category, quantity: qty });
+
+  await order.save();
+  res.status(201).json({ success: true, data: order });
+});
+
 const createClientOrder = catchAsync(async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.id))
     throw new ApiError(400, 'Invalid client id');
@@ -65,4 +106,11 @@ const deleteClientOrder = catchAsync(async (req, res) => {
   res.json({ success: true, data: null });
 });
 
-module.exports = { getClientOrders, createClientOrder, updateClientOrder, deleteClientOrder };
+module.exports = {
+  getClientOrders,
+  listClientOrders,
+  createClientOrder,
+  addClientOrderItem,
+  updateClientOrder,
+  deleteClientOrder,
+};

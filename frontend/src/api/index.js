@@ -170,8 +170,17 @@ export const clientOrders = {
     const payload = await req('GET', `/clients/${clientId}/orders`);
     return pickData(payload) || [];
   },
+  // Cross-client lookup (e.g. status: 'en_commande') for the "commande existante" picker.
+  listActive: async (status) => {
+    const payload = await req('GET', `/client-orders${status ? `?status=${encodeURIComponent(status)}` : ''}`);
+    return pickData(payload) || [];
+  },
   create: async (clientId, data) => {
     const payload = await req('POST', `/clients/${clientId}/orders`, data);
+    return pickData(payload);
+  },
+  addItem: async (orderId, item) => {
+    const payload = await req('POST', `/client-orders/${orderId}/items`, item);
     return pickData(payload);
   },
   update: async (orderId, data) => {

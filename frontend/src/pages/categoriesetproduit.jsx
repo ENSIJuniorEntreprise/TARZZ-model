@@ -1,15 +1,19 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import { Package, Folder, ChevronRight, ChevronDown, Plus, FolderPlus, X, Upload, Trash2 } from "lucide-react";
+import {
+  Package, Folder, ChevronRight, ChevronDown, ChevronLeft, Plus, FolderPlus, X, Upload, Trash2,
+  ShoppingCart, Search, RefreshCw,
+} from "lucide-react";
 import {
   loadStocks, updateStock as persistStock,
-  idToKey, initStocks, getByKey,
+  idToKey, initStocks, getByKey, decrementStocks,
   DEFAULT_STOCK, LOW_STOCK_THRESHOLD,
 } from "../utils/stock";
 import {
-  STATIC_TREE, STATIC_IDS, getNode, sortedChildren, mergeCatalog,
+  STATIC_TREE, STATIC_IDS, getNode, sortedChildren, mergeCatalog, flattenTree,
   loadVirtualCategories as loadVCats, saveVirtualCategories as saveVCats,
   loadVirtualProducts as loadVProds, saveVirtualProducts as saveVProds,
 } from "../utils/catalog";
+import { clients as clientsApi, clientOrders as ordersApi } from "../api";
 
 async function compressImage(file, maxDim = 900, quality = 0.8) {
   return new Promise(resolve => {
@@ -224,6 +228,275 @@ function AddProductModal({ tree, allCategories, onClose, onSave }) {
   );
 }
 
+// ── Toast ─────────────────────────────────────────────────────────────────────
+function Toast({ message }) {
+  if (!message) return null;
+  return (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[70] px-4 py-2.5 rounded-xl text-white text-sm font-semibold shadow-2xl"
+      style={{ background: "linear-gradient(135deg,#3D7A47,#4E9457)" }}>
+      {message}
+    </div>
+  );
+}
+
+// ── Bandeau commande active ─────────────────────────────────────────────────────
+function ActiveOrderBanner({ activeOrder, onChange }) {
+  if (!activeOrder) return null;
+  return (
+    <div className="fixed top-4 right-4 z-[65] flex items-center gap-3 bg-white rounded-2xl shadow-xl border border-[#E8DCF0] pl-4 pr-2 py-2"
+      style={{ fontFamily: "'DM Sans',sans-serif" }}>
+      <ShoppingCart size={15} style={{ color: "#7A6B89" }} />
+      <div className="leading-tight">
+        <p className="text-xs font-bold text-[#1a1212]">{activeOrder.clientLabel}</p>
+        <p className="text-[10px] text-[#9a8585]">{activeOrder.count} article{activeOrder.count !== 1 ? "s" : ""} ajouté{activeOrder.count !== 1 ? "s" : ""}</p>
+      </div>
+      <button onClick={onChange} title="Changer de commande active"
+        className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[10px] font-bold hover:bg-[#F0EAF7] transition"
+        style={{ color: "#7A6B89" }}>
+        <RefreshCw size={11} /> Changer
+      </button>
+    </div>
+  );
+}
+
+// ── Lightbox ──────────────────────────────────────────────────────────────────
+function Lightbox({ product, onPrev, onNext, onClose, stock, onAdd, addBusy, activeOrder, onChangeOrder }) {
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowLeft") onPrev();
+      if (e.key === "ArrowRight") onNext();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose, onPrev, onNext]);
+
+  if (!product) return null;
+  const st = statusProps(stock);
+  const outOfStock = stock === 0;
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/80 flex items-center justify-center p-4" onClick={onClose}>
+      <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white transition" aria-label="Fermer">
+        <X size={26} />
+      </button>
+
+      <button
+        onClick={e => { e.stopPropagation(); onPrev(); }}
+        className="absolute left-2 sm:left-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition"
+        aria-label="Produit précédent"
+      >
+        <ChevronLeft size={26} />
+      </button>
+      <button
+        onClick={e => { e.stopPropagation(); onNext(); }}
+        className="absolute right-2 sm:right-6 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition"
+        aria-label="Produit suivant"
+      >
+        <ChevronRight size={26} />
+      </button>
+
+      <div
+        className="bg-white rounded-2xl overflow-hidden shadow-2xl w-full max-w-lg flex flex-col"
+        style={{ fontFamily: "'DM Sans',sans-serif", maxHeight: "88vh" }}
+        onClick={e => e.stopPropagation()}
+      >
+        {activeOrder && (
+          <div className="flex items-center justify-between px-4 py-2 bg-[#F8F5FB] border-b border-[#E8DCF0] flex-shrink-0">
+            <p className="text-[11px] font-semibold truncate" style={{ color: "#5A3F6B" }}>
+              Commande active : {activeOrder.clientLabel} · {activeOrder.count} article{activeOrder.count !== 1 ? "s" : ""}
+            </p>
+            <button onClick={onChangeOrder} className="text-[10px] font-bold underline flex-shrink-0 ml-2" style={{ color: "#7A6B89" }}>
+              Changer
+            </button>
+          </div>
+        )}
+        <div className="bg-[#f4f4f5] flex items-center justify-center" style={{ height: "48vh" }}>
+          <img src={product.url} alt={product.name} className="max-w-[85%] max-h-[85%] object-contain" />
+        </div>
+        <div className="p-5 flex flex-col gap-3">
+          <div>
+            <p className="font-bold text-base text-[#1a1212]" title={product.name}>{product.name}</p>
+            <p className="text-xs text-[#9a8585] mt-0.5">{product.category}</p>
+          </div>
+          <span className="inline-flex self-start px-2.5 py-1 rounded-full text-xs font-bold" style={{ backgroundColor: st.bg, color: st.color }}>
+            {stock} en stock — {st.label}
+          </span>
+          <button
+            onClick={() => onAdd(product)}
+            disabled={outOfStock || addBusy}
+            className="w-full py-3 rounded-xl text-white text-sm font-bold transition"
+            style={{
+              background: "linear-gradient(135deg,#7A6B89,#9B8AAA)",
+              opacity: outOfStock || addBusy ? 0.5 : 1,
+              cursor: outOfStock || addBusy ? "not-allowed" : "pointer",
+            }}
+          >
+            {outOfStock ? "Rupture de stock" : addBusy ? "Ajout…" : "Ajouter au panier"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal : choix commande existante / nouvelle commande ──────────────────────
+function OrderChoiceModal({ onClose, onChooseExisting, onChooseNew, allowNew }) {
+  return (
+    <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" style={{ fontFamily: "'DM Sans',sans-serif" }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-sm text-[#1a1212]">Ajouter à une commande</h2>
+          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+        </div>
+        <div className="p-5 flex flex-col gap-3">
+          <button onClick={onChooseExisting}
+            className="w-full text-left px-4 py-3.5 rounded-xl border border-gray-200 hover:border-[#C9B8D8] hover:bg-[#F8F5FB] transition">
+            <p className="text-sm font-bold text-[#1a1212]">Commande existante</p>
+            <p className="text-xs text-[#9a8585] mt-0.5">Choisir parmi les commandes en cours</p>
+          </button>
+          <button onClick={onChooseNew} disabled={!allowNew}
+            className="w-full text-left px-4 py-3.5 rounded-xl border border-gray-200 transition"
+            style={{
+              opacity: allowNew ? 1 : 0.5,
+              cursor: allowNew ? "pointer" : "not-allowed",
+              borderColor: allowNew ? undefined : "#eee",
+            }}
+          >
+            <p className="text-sm font-bold text-[#1a1212]">Nouvelle commande</p>
+            <p className="text-xs text-[#9a8585] mt-0.5">
+              {allowNew ? "Choisir un client et démarrer une commande" : "Disponible lors de l'ajout d'un produit"}
+            </p>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal : sélection commande existante (clients uniquement, statut en_commande) ──
+function ExistingOrdersModal({ orders, loading, error, recentIds, onSelect, onClose, onGoNew, allowNew }) {
+  const recent = orders.filter(o => recentIds.includes(o._id || o.id));
+  const rest   = orders.filter(o => !recentIds.includes(o._id || o.id));
+
+  const Row = order => {
+    const id = order._id || order.id;
+    const label = `${order.client?.firstName || ""} ${order.client?.lastName || ""}`.trim() || "Client";
+    const items = order.items || [];
+    return (
+      <button key={id} onClick={() => onSelect(order)}
+        className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-[#C9B8D8] hover:bg-[#F8F5FB] transition flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-bold truncate text-[#1a1212]">{label}</p>
+          <p className="text-xs text-[#9a8585] mt-0.5">{items.length} produit{items.length !== 1 ? "s" : ""}</p>
+        </div>
+        <ChevronRight size={16} className="flex-shrink-0" style={{ color: "#d4c5be" }} />
+      </button>
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col" style={{ fontFamily: "'DM Sans',sans-serif", maxHeight: "80vh" }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+          <h2 className="font-bold text-sm text-[#1a1212]">Commande existante</h2>
+          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+        </div>
+        <div className="p-5 flex flex-col gap-4 overflow-y-auto">
+          {loading && <p className="text-sm text-center py-6" style={{ color: "#9a8585" }}>Chargement…</p>}
+          {!loading && error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          {!loading && !error && orders.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-3 py-8">
+              <ShoppingCart size={32} strokeWidth={1} style={{ color: "#e0d4d4" }} />
+              <p className="text-sm text-center" style={{ color: "#9a8585" }}>Aucune commande client en cours</p>
+              <button onClick={onGoNew} disabled={!allowNew}
+                className="text-xs font-bold underline" style={{ color: "#7A6B89", opacity: allowNew ? 1 : 0.5 }}>
+                Créer une nouvelle commande
+              </button>
+            </div>
+          )}
+          {!loading && !error && recent.length > 0 && (
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9b8095" }}>Récentes</p>
+              <div className="flex flex-col gap-2">{recent.map(Row)}</div>
+            </div>
+          )}
+          {!loading && !error && rest.length > 0 && (
+            <div>
+              {recent.length > 0 && <p className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: "#9b8095" }}>Toutes les commandes en cours</p>}
+              <div className="flex flex-col gap-2">{rest.map(Row)}</div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Modal : sélection client (nouvelle commande) ───────────────────────────────
+function ClientPickerModal({ onClose, onSelect }) {
+  const [search, setSearch]   = useState("");
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true); setError("");
+    const t = setTimeout(async () => {
+      try {
+        const list = await clientsApi.list(search.trim());
+        if (alive) setResults(list);
+      } catch (e) {
+        if (alive) setError(e.message || "Erreur de chargement");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    }, 250);
+    return () => { alive = false; clearTimeout(t); };
+  }, [search]);
+
+  return (
+    <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col" style={{ fontFamily: "'DM Sans',sans-serif", maxHeight: "80vh" }} onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 flex-shrink-0">
+          <h2 className="font-bold text-sm text-[#1a1212]">Nouvelle commande — choisir un client</h2>
+          <button onClick={onClose}><X size={18} className="text-gray-400 hover:text-gray-600" /></button>
+        </div>
+        <div className="px-5 pt-4 flex-shrink-0">
+          <div className="relative">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: "#c4b0aa" }} />
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher un client…"
+              className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-xl text-sm outline-none focus:ring-1 focus:ring-[#9E8A9C]" />
+          </div>
+        </div>
+        <div className="p-5 flex flex-col gap-2 overflow-y-auto">
+          {loading && <p className="text-sm text-center py-6" style={{ color: "#9a8585" }}>Chargement…</p>}
+          {!loading && error && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          {!loading && !error && results.length === 0 && (
+            <p className="text-sm text-center py-6" style={{ color: "#9a8585" }}>Aucun client trouvé</p>
+          )}
+          {!loading && !error && results.map(c => (
+            <button key={c.id} onClick={() => onSelect(c)}
+              className="w-full text-left px-4 py-3 rounded-xl border border-gray-200 hover:border-[#C9B8D8] hover:bg-[#F8F5FB] transition flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm font-bold truncate text-[#1a1212]">{c.firstName} {c.lastName}</p>
+                {c.phone && <p className="text-xs text-[#9a8585] mt-0.5">{c.phone}</p>}
+              </div>
+              <ChevronRight size={16} className="flex-shrink-0" style={{ color: "#d4c5be" }} />
+            </button>
+          ))}
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 flex-shrink-0">
+          <p className="text-[11px] italic" style={{ color: "#9a8585" }}>
+            Pour ajouter un client, rendez-vous dans la page Clients.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Composant arbre sidebar ───────────────────────────────────────────────────
 function TreeNode({ name, node, depth, path, activePath, expanded, onToggle, onSelect }) {
   const pathStr = path.join("/");
@@ -304,6 +577,135 @@ export default function ProduitsCategories() {
 
   const getStock    = imgId => getByKey(idToKey(imgId), stocks);
   const doUpdateStock = (imgId, val) => persistStock(idToKey(imgId), Math.max(0, parseInt(val, 10) || 0));
+
+  // ── Lightbox / ajout au panier (commandes CLIENT uniquement) ─────────────────
+  const flatAll = useMemo(() => flattenTree(mergedTree), [mergedTree]);
+  const [lightboxIdx, setLightboxIdx] = useState(null);
+  const lightboxProduct = lightboxIdx !== null ? flatAll[lightboxIdx] : null;
+
+  const [activeOrder, setActiveOrder]     = useState(null); // { orderId, clientId, clientLabel, count }
+  const [recentOrderIds, setRecentOrderIds] = useState([]);
+  const [pendingAdd, setPendingAdd]       = useState(null);
+  const [cartFlow, setCartFlow]           = useState(null); // null | 'choice' | 'existing' | 'newClient'
+  const [existingOrders, setExistingOrders] = useState([]);
+  const [loadingExisting, setLoadingExisting] = useState(false);
+  const [errorExisting, setErrorExisting] = useState("");
+  const [addBusy, setAddBusy]             = useState(false);
+  const [toast, setToast]                 = useState("");
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(""), 2500);
+    return () => clearTimeout(t);
+  }, [toast]);
+
+  const openLightboxFor = product => {
+    const idx = flatAll.findIndex(p => p.id === product.id);
+    if (idx >= 0) setLightboxIdx(idx);
+  };
+  const closeLightbox = () => setLightboxIdx(null);
+  const goPrevProduct  = () => setLightboxIdx(i => (i === null || flatAll.length === 0) ? i : (i - 1 + flatAll.length) % flatAll.length);
+  const goNextProduct  = () => setLightboxIdx(i => (i === null || flatAll.length === 0) ? i : (i + 1) % flatAll.length);
+
+  const rememberRecentOrder = orderId => {
+    setRecentOrderIds(ids => [orderId, ...ids.filter(x => x !== orderId)].slice(0, 5));
+  };
+
+  const performAddToOrder = async (orderId, product) => {
+    await ordersApi.addItem(orderId, { productName: product.name, productCategory: product.category, quantity: 1 });
+    decrementStocks([{ stockId: product.stockId, quantity: 1 }]);
+  };
+
+  const handleAddToCart = async product => {
+    if (activeOrder) {
+      setAddBusy(true);
+      try {
+        await performAddToOrder(activeOrder.orderId, product);
+        setActiveOrder(o => ({ ...o, count: o.count + 1 }));
+        rememberRecentOrder(activeOrder.orderId);
+        setToast(`${product.name} ajouté à la commande de ${activeOrder.clientLabel}`);
+      } catch (e) {
+        setToast(e.message || "Erreur lors de l'ajout");
+      } finally {
+        setAddBusy(false);
+      }
+      return;
+    }
+    setPendingAdd(product);
+    setCartFlow("choice");
+  };
+
+  const openChangeOrder = () => {
+    setPendingAdd(null);
+    setCartFlow("choice");
+  };
+
+  const closeCartFlow = () => { setCartFlow(null); setPendingAdd(null); };
+
+  const handleChooseExisting = async () => {
+    setCartFlow("existing");
+    setLoadingExisting(true); setErrorExisting("");
+    try {
+      const list = await ordersApi.listActive("en_commande");
+      setExistingOrders(list);
+    } catch (e) {
+      setErrorExisting(e.message || "Erreur de chargement");
+    } finally {
+      setLoadingExisting(false);
+    }
+  };
+
+  const handleChooseNew = () => {
+    if (!pendingAdd) return;
+    setCartFlow("newClient");
+  };
+
+  const finishSelectExistingOrder = async order => {
+    const orderId = order._id || order.id;
+    const clientLabel = `${order.client?.firstName || ""} ${order.client?.lastName || ""}`.trim() || "Client";
+    const clientId = order.client?._id || order.client;
+
+    if (pendingAdd) {
+      setAddBusy(true);
+      try {
+        await performAddToOrder(orderId, pendingAdd);
+        setActiveOrder({ orderId, clientId, clientLabel, count: 1 });
+        rememberRecentOrder(orderId);
+        setToast(`${pendingAdd.name} ajouté à la commande de ${clientLabel}`);
+      } catch (e) {
+        setToast(e.message || "Erreur lors de l'ajout");
+      } finally {
+        setAddBusy(false);
+      }
+    } else {
+      setActiveOrder({ orderId, clientId, clientLabel, count: 0 });
+      rememberRecentOrder(orderId);
+    }
+    closeCartFlow();
+  };
+
+  const finishSelectClientForNewOrder = async client => {
+    if (!pendingAdd) { closeCartFlow(); return; }
+    const clientId = client.id || client._id;
+    const clientLabel = `${client.firstName} ${client.lastName}`.trim() || "Client";
+    setAddBusy(true);
+    try {
+      const order = await ordersApi.create(clientId, {
+        items: [{ productName: pendingAdd.name, productCategory: pendingAdd.category, quantity: 1 }],
+        status: "en_commande",
+      });
+      decrementStocks([{ stockId: pendingAdd.stockId, quantity: 1 }]);
+      const orderId = order._id || order.id;
+      setActiveOrder({ orderId, clientId, clientLabel, count: 1 });
+      rememberRecentOrder(orderId);
+      setToast(`${pendingAdd.name} ajouté à la nouvelle commande de ${clientLabel}`);
+    } catch (e) {
+      setToast(e.message || "Erreur lors de la création de la commande");
+    } finally {
+      setAddBusy(false);
+      closeCartFlow();
+    }
+  };
 
   const toggleExpanded = pathStr => {
     setExpanded(prev => {
@@ -583,7 +985,11 @@ export default function ProduitsCategories() {
                         <Trash2 size={12} className="text-red-400" />
                       </button>
                     )}
-                    <div className="bg-[#f4f4f5] flex items-center justify-center h-36">
+                    <div
+                      className="bg-[#f4f4f5] flex items-center justify-center h-36 cursor-zoom-in"
+                      onClick={() => openLightboxFor(p)}
+                      title="Cliquer pour agrandir"
+                    >
                       <img src={p.url} alt={p.name} className="w-4/5 h-4/5 object-contain" loading="lazy" />
                     </div>
                     <div className="p-3">
@@ -630,6 +1036,50 @@ export default function ProduitsCategories() {
       {showAddCat  && <AddCategoryModal onClose={() => setShowAddCat(false)}  onSave={handleAddCategory} />}
       {showAddProd && <AddProductModal  onClose={() => setShowAddProd(false)} onSave={handleAddProduct}
                         tree={mergedTree} allCategories={allCategories} />}
+
+      {!lightboxProduct && <ActiveOrderBanner activeOrder={activeOrder} onChange={openChangeOrder} />}
+
+      {lightboxProduct && (
+        <Lightbox
+          product={lightboxProduct}
+          stock={getByKey(lightboxProduct.stockId, stocks)}
+          onPrev={goPrevProduct}
+          onNext={goNextProduct}
+          onClose={closeLightbox}
+          onAdd={handleAddToCart}
+          addBusy={addBusy}
+          activeOrder={activeOrder}
+          onChangeOrder={openChangeOrder}
+        />
+      )}
+
+      {cartFlow === "choice" && (
+        <OrderChoiceModal
+          onClose={closeCartFlow}
+          onChooseExisting={handleChooseExisting}
+          onChooseNew={handleChooseNew}
+          allowNew={!!pendingAdd}
+        />
+      )}
+
+      {cartFlow === "existing" && (
+        <ExistingOrdersModal
+          orders={existingOrders}
+          loading={loadingExisting}
+          error={errorExisting}
+          recentIds={recentOrderIds}
+          onSelect={finishSelectExistingOrder}
+          onClose={closeCartFlow}
+          onGoNew={handleChooseNew}
+          allowNew={!!pendingAdd}
+        />
+      )}
+
+      {cartFlow === "newClient" && (
+        <ClientPickerModal onClose={closeCartFlow} onSelect={finishSelectClientForNewOrder} />
+      )}
+
+      <Toast message={toast} />
     </div>
   );
 }
